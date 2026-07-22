@@ -1,44 +1,11 @@
-# STM32-CAN-Industrial-Control-System
+基于 STM32 + FreeRTOS 的三节点 CAN 总线工业控制系统。
 
+系统由 STM32F407 主控节点和两个 STM32F103 从节点组成，
+通过 CAN 总线实现传感器采集、控制决策和执行器反馈闭环。
 
-## Project Overview
-
-An industrial embedded control system based on:
-
-- STM32
-- FreeRTOS
-- CAN Bus
-- Embedded Linux
-- AI Edge Gateway
-
-
-## Architecture
-
-
-STM32 Node
-    |
-    | CAN Bus
-    |
-Linux Gateway
-    |
-    | TCP/MQTT
-    |
-Cloud / AI Service
-
-
-## Modules
-
-- stm32_firmware
-- linux_gateway
-- server
-- hardware
-- docs
-
-
-## Development Progress
-
-- [ ] Environment Setup
-- [ ] STM32 CAN Communication
-- [ ] FreeRTOS Task Design
-- [ ] Linux Gateway
-- [ ] AI Integration
+主要实现：
+- FreeRTOS 多任务架构
+- 自定义 CAN 应用层协议
+- 心跳检测与节点离线识别
+- 电机 PID 速度闭环控制
+- CAN 故障检测与恢复
