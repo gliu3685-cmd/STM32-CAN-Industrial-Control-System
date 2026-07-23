@@ -1,0 +1,21 @@
+# STM32 build files
+
+Debug/
+Release/
+
+*.o
+*.d
+*.elf
+*.hex
+*.bin
+*.map
+
+# IDE files
+
+.settings/
+.metadata/
+*.launch
+
+# CubeMX backup
+
+*.bak
