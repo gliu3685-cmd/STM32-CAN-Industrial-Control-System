@@ -1,111 +1,77 @@
-# Day2 STM32工程结构学习
+docs/Day2_GPIO_UART.md
+# Day2 - GPIO Control and UART Communication
 
 
-## 今日目标
-
-- 理解STM32启动流程
-- 理解CubeMX工程结构
-- 理解HAL库架构
-- 完成GPIO LED控制实验
-- 优化工程文件结构
+## Objective
 
 
-## 学习内容
+学习STM32 HAL库基础外设开发。
 
-
-### 1. STM32启动流程
-
-STM32启动流程：
-
-Reset
-
-↓
-
-startup.s
-
-↓
-
-SystemInit()
-
-↓
-
-HAL_Init()
-
-↓
-
-main()
-
-
-### 2. CubeMX工程结构
-
-工程主要组成：
-
-Core
-
-Drivers
-
-.ioc配置文件
-
-
-### 3. HAL库
-
-应用代码通过HAL接口访问硬件：
-
-Application
-
-↓
-
-HAL
-
-↓
-
-Register
-
-↓
-
-Hardware
-
-
-## 实践内容
 
 完成：
 
-STM32F407 GPIO LED闪烁实验
+- GPIO控制
+- UART通信
+- printf重定向
 
 
-GPIO:
+---
 
-PF9
+# GPIO Development
 
 
-代码：
+使用HAL库控制LED：
 
+```c
 HAL_GPIO_TogglePin(GPIOF, GPIO_PIN_9);
 
-HAL_Delay(500);
+实现：
+
+LED周期闪烁。
+
+UART Configuration
+
+USART1:
+
+Baud Rate: 115200
+
+Data Bits: 8
+
+Parity: None
+
+Stop Bits: 1
+
+printf Redirect
+
+实现：
+
+int __io_putchar(int ch)
+{
+    HAL_UART_Transmit(
+        &huart1,
+        (uint8_t *)&ch,
+        1,
+        HAL_MAX_DELAY
+    );
+
+    return ch;
+}
 
 
-## 工程优化
+实现：
 
-完成CubeMX模块化生成：
+printf("STM32 Start\r\n");
 
-main.c
+HAL Library Knowledge
 
-gpio.c
+HAL提供：
 
-gpio.h
+GPIO API
+UART API
+Timer API
 
-usart.c
+例如：
 
-usart.h
+HAL_UART_Transmit()
 
-
-## 实验结果
-
-LED闪烁成功。
-
-
-## 总结
-
-完成STM32基础工程环境搭建，
-为后续FreeRTOS、CAN通信开发建立基础。
+HAL_GPIO_WritePin()
