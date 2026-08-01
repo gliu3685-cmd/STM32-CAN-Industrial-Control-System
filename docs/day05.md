@@ -1,6 +1,3 @@
-docs/Day5_FreeRTOS_Basic.md
-
-```markdown
 # Day5 - FreeRTOS Basic Integration
 
 
@@ -140,3 +137,4 @@ Verified:
 ✅ Scheduler Running
 
 ✅ Multiple Tasks Running
+```

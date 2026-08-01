@@ -1,4 +1,3 @@
-docs/Day1_STM32_Setup.md
 # Day1 - STM32 Development Environment Setup
 
 

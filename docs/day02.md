@@ -1,4 +1,3 @@
-docs/Day2_GPIO_UART.md
 # Day2 - GPIO Control and UART Communication
 
 
@@ -75,3 +74,4 @@ Timer API
 HAL_UART_Transmit()
 
 HAL_GPIO_WritePin()
+```
