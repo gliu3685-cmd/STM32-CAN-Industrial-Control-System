@@ -160,6 +160,7 @@ STM32-CAN-Industrial-Control-System
 - [Day 6：FreeRTOS 任务管理与调度](docs/day06.md)
 - [Day 7：FreeRTOS Queue 任务通信](docs/day07.md)
 - [Day 8：FreeRTOS 同步机制（Semaphore & Mutex）](docs/day08.md)
+- [Day 9：FreeRTOS 软件定时器与临界区保护](docs/day09.md)
 
 ---
 

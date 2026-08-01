@@ -1,5 +1,9 @@
 #include "app_task.h"
 #include "stdio.h"
+#include "cmsis_os.h"
+
+/* UART 共享资源互斥锁（定义于 freertos.c） */
+extern osMutexId uartMutexHandle;
 
 
 void SensorTask(void const * argument)
@@ -47,12 +51,13 @@ void ControlTask(void const * argument)
                 portMAX_DELAY)==pdPASS)
         {
 
-
+            osMutexWait(uartMutexHandle, osWaitForever);
             printf(
                 "Temp:%d Speed:%d\r\n",
                 recv.temperature,
                 recv.speed
             );
+            osMutexRelease(uartMutexHandle);
 
 
         }
