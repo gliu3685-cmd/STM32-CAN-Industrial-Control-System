@@ -18,18 +18,17 @@
 /* USER CODE END Header */
 
 /* Includes ------------------------------------------------------------------*/
-#include <app_queue.h>
-#include <app_task.h>
 #include "FreeRTOS.h"
 #include "task.h"
 #include "main.h"
 #include "cmsis_os.h"
-#include "stdio.h"
 #include "usart.h"
-#include "app_sync.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include <stdio.h>
+#include <app_queue.h>
+#include <app_task.h>
 #include "app_sync.h"
 /* USER CODE END Includes */
 
@@ -50,16 +49,15 @@
 
 /* Private variables ---------------------------------------------------------*/
 /* USER CODE BEGIN Variables */
-
+SemaphoreHandle_t xBinarySemaphore;
+osMutexId uartMutexHandle;
 /* USER CODE END Variables */
 osThreadId defaultTaskHandle;
 osThreadId uartTaskHandle;
 osThreadId monitorTaskHandle;
 osThreadId sensorTaskHandle;
 osThreadId controlTaskHandle;
-SemaphoreHandle_t xBinarySemaphore;
-osMutexId uartMutexHandle;/*
- Private function prototypes -----------------------------------------------*/
+/* Private function prototypes -----------------------------------------------*/
 /* USER CODE BEGIN FunctionPrototypes */
 
 /* USER CODE END FunctionPrototypes */
@@ -97,17 +95,10 @@ void MX_FREERTOS_Init(void) {
   /* USER CODE END Init */
 
   /* USER CODE BEGIN RTOS_MUTEX */
-	/* USER CODE BEGIN RTOS_MUTEX */
-
+  /* add mutexes, ... */
 	osMutexDef(uartMutex);
 
-	uartMutexHandle =
-	        osMutexCreate(
-	            osMutex(uartMutex)
-	        );
-
-	/* USER CODE END RTOS_MUTEX */
-  /* add mutexes, ... */
+	uartMutexHandle = osMutexCreate(osMutex(uartMutex));
   /* USER CODE END RTOS_MUTEX */
 
   /* USER CODE BEGIN RTOS_SEMAPHORES */
@@ -119,7 +110,8 @@ void MX_FREERTOS_Init(void) {
   /* USER CODE END RTOS_TIMERS */
 
   /* USER CODE BEGIN RTOS_QUEUES */
-	Queue_Init();/* add queues, ... */
+  /* add queues, ... */
+	Queue_Init();
   /* USER CODE END RTOS_QUEUES */
 
   /* Create the thread(s) */
@@ -143,7 +135,8 @@ void MX_FREERTOS_Init(void) {
 
 
   monitorTaskHandle =
-          osThreadCreate(osThread(monitorTask), NULL);/* USER CODE BEGIN RTOS_THREADS */
+          osThreadCreate(osThread(monitorTask), NULL);
+  /* USER CODE BEGIN RTOS_THREADS */
   osThreadDef(sensorTask,
             SensorTask,
             osPriorityNormal,
