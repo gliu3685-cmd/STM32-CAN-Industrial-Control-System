@@ -138,9 +138,9 @@ xSemaphoreGiveFromISR();
 
 ---
 
-# 2.3 Mutex（互斥锁）
+## 2.3 Mutex（互斥锁）
 
-## 为什么需要 Mutex？
+### 为什么需要 Mutex？
 
 多个任务可能同时访问同一个资源。
 
@@ -173,7 +173,7 @@ Temp:1Speed:UART
 
 ---
 
-## Mutex作用
+### Mutex 作用
 
 Mutex保证：
 
@@ -213,7 +213,7 @@ Take Mutex
 
 ---
 
-# 3. 实验环境（Environment）
+## 3. 实验环境（Environment）
 
 硬件：
 
@@ -242,9 +242,9 @@ FreeRTOS实时系统
 
 ---
 
-# 4. Binary Semaphore 实现
+## 4. Binary Semaphore 实现
 
-## 4.1 创建 Semaphore
+### 4.1 创建 Semaphore
 
 位置：
 
@@ -261,7 +261,7 @@ xBinarySemaphore = xSemaphoreCreateBinary();
 
 ---
 
-## 4.2 创建 Semaphore Task
+### 4.2 创建 Semaphore Task
 
 创建任务：
 
@@ -282,7 +282,7 @@ sensorTaskHandle =
 
 ---
 
-## 4.3 SemaphoreTask实现
+### 4.3 SemaphoreTask 实现
 
 ```c
 void SemaphoreTask(void const * argument)
@@ -314,7 +314,7 @@ void SemaphoreTask(void const * argument)
 
 ---
 
-## 4.4 TIM3中断释放Semaphore
+### 4.4 TIM3 中断释放 Semaphore
 
 修改：
 
@@ -360,9 +360,9 @@ LED10 Toggle
 
 ---
 
-# 5. Mutex 实现
+## 5. Mutex 实现
 
-## 5.1 创建 UART Mutex
+### 5.1 创建 UART Mutex
 
 freertos.c:
 
@@ -378,7 +378,7 @@ uartMutexHandle =
 
 ---
 
-## 5.2 UART资源保护
+### 5.2 UART 资源保护
 
 修改任务：
 
@@ -405,9 +405,9 @@ osMutexRelease(
 
 ---
 
-# 6. 实验过程（Experiment）
+## 6. 实验过程（Experiment）
 
-## 实验1：Semaphore同步测试
+### 实验 1：Semaphore 同步测试
 
 现象：
 
@@ -448,7 +448,7 @@ Task执行
 
 ---
 
-## 实验2：Mutex UART保护
+### 实验 2：Mutex UART 保护
 
 加入Mutex前：
 
@@ -487,7 +487,7 @@ FreeRTOS UART Task Running
 
 ---
 
-## 实验3：制造竞争验证Mutex
+### 实验 3：制造竞争验证 Mutex
 
 增加：
 
@@ -524,9 +524,9 @@ Mutex成功保护临界资源。
 
 ---
 
-# 7. 遇到的问题与解决（Problems & Solutions）
+## 7. 遇到的问题与解决（Problems & Solutions）
 
-## Problem 1
+### Problem 1
 
 ### 问题：
 
@@ -550,7 +550,7 @@ app_sync.c缺少stdio声明。
 
 ---
 
-## Problem 2
+### Problem 2
 
 ### 问题：
 
@@ -579,7 +579,7 @@ extern osMutexId uartMutexHandle;
 
 ---
 
-## Problem 3
+### Problem 3
 
 ### 问题：
 
@@ -611,7 +611,7 @@ ISR通知Task
 
 ---
 
-# 8. 今日成果（Result）
+## 8. 今日成果（Result）
 
 完成：
 
@@ -661,11 +661,11 @@ ISR通知Task
 
 ---
 
-# 9. 工程总结（Engineering Summary）
+## 9. 工程总结（Engineering Summary）
 
 本日学习重点不是API调用，而是理解实时系统设计思想：
 
-## 中断不要处理业务
+### 中断不要处理业务
 
 错误：
 
@@ -695,7 +695,7 @@ Task处理业务
 
 ---
 
-## 共享资源必须保护
+### 共享资源必须保护
 
 例如：
 
@@ -713,7 +713,7 @@ Mutex
 
 ---
 
-# 10. Git提交
+## 10. Git 提交
 
 建议提交：
 
@@ -725,18 +725,13 @@ git commit -m "feat: implement FreeRTOS semaphore and mutex synchronization"
 
 ---
 
-# 11. 下一步计划（Next Step）
+## 11. 下一步计划（Next Step）
 
-Day09:
+Day09（已完成）：
 
-FreeRTOS高级机制：
+FreeRTOS 高级机制——Software Timer（软件定时器）、FromISR、临界区保护（见 [day09.md](day09.md)）。
 
-* Software Timer
-* Event Group
-* Task状态管理
-* 系统周期任务设计
-
-为后续：
+后续：
 
 ```
 CAN通信任务

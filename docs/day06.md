@@ -1,304 +1,194 @@
-# Day6 - FreeRTOS任务管理与调度机制
+# Day06 - FreeRTOS 任务管理与调度机制
 
+## 1. 今日目标（Objectives）
 
-## 今日目标
+深入理解 FreeRTOS 任务运行机制。
 
-深入理解FreeRTOS任务运行机制。
+今日学习：
 
-学习：
-
-- Task生命周期
-- Task优先级
-- FreeRTOS Tick机制
-- osDelay与HAL_Delay区别
-- 多任务调度过程
-
+* Task 生命周期
+* Task 优先级
+* FreeRTOS Tick 机制
+* osDelay 与 HAL_Delay 区别
+* 多任务调度过程
 
 ---
 
-# 一、FreeRTOS任务模型
+## 2. 理论学习（Theory）
 
+### 2.1 FreeRTOS 任务模型
 
-在裸机开发中：
+裸机开发将所有功能集中在主循环：
 
 ```c
-while(1)
+while (1)
 {
     Task1();
-
     Task2();
-
     Task3();
 }
-所有功能集中在主循环中。
+```
 
-随着系统功能增加：
+随着功能增加，出现代码耦合、任务管理困难、实时性下降等问题。
 
-代码耦合增加
-任务管理困难
-实时性下降
+引入 FreeRTOS 后，由调度器统一管理多个任务：
 
-引入FreeRTOS后：
+```
+FreeRTOS Scheduler
+    ├── LED Task
+    ├── UART Task
+    └── Monitor Task
+```
 
-              FreeRTOS Scheduler
+### 2.2 Task 状态
 
+FreeRTOS 任务主要状态：
 
-                    |
-
-        +-----------+-----------+
-
-        |           |           |
-
-     LED Task   UART Task   Monitor Task
-
-
-系统通过调度器管理多个任务。
-
-二、Task状态
-
-FreeRTOS任务主要状态：
-
-Ready（就绪）
-
-任务已经创建，等待CPU调度。
-
-Running（运行）
-
-当前正在执行的任务。
-
-Blocked（阻塞）
-
-任务等待某个事件，例如：
-
-延时结束
-等待消息
+| 状态 | 说明 |
+|---|---|
+| Ready（就绪） | 任务已创建，等待 CPU 调度 |
+| Running（运行） | 当前正在执行的任务 |
+| Blocked（阻塞） | 等待事件（延时结束、消息到达等） |
+| Suspended（挂起） | 任务被主动暂停 |
 
 例如：
 
-osDelay(500);
+```c
+osDelay(500);   /* 任务进入 Blocked 状态 */
+```
 
-任务进入Blocked状态。
+### 2.3 Task 优先级
 
-Suspended（挂起）
+FreeRTOS 通过优先级决定任务调度顺序。本次实验创建三个任务：
 
-任务被主动暂停。
+| 任务 | 优先级 | 功能 |
+|---|---|---|
+| Monitor Task | High | 系统状态监控 |
+| Default Task（LED） | Normal | LED 周期控制 |
+| UART Task | Low | 串口调试输出 |
 
-三、Task优先级
+```
+High Priority   →  Monitor Task
+Normal Priority →  LED Task
+Low Priority    →  UART Task
+```
 
-FreeRTOS通过优先级决定任务调度顺序。
+### 2.4 Tick 机制
 
-本次实验创建三个任务：
+FreeRTOS 需要时间基准管理任务调度：
 
-Monitor Task
-
-优先级：
-
-High
-
-功能：
-
-系统状态监控。
-
-Default Task
-
-优先级：
-
-Normal
-
-功能：
-
-LED周期控制。
-
-UART Task
-
-优先级：
-
-Low
-
-功能：
-
-串口调试输出。
-
-任务结构：
-
-High Priority
-
-Monitor Task
-
-
-Normal Priority
-
-LED Task
-
-
-Low Priority
-
-UART Task
-
-四、Tick机制
-
-FreeRTOS需要时间基准管理任务调度。
-
-系统Tick：
-
+```
 SysTick Timer
-
-        |
-
+    ↓
 FreeRTOS Kernel
-
-        |
-
+    ↓
 Task Scheduling
+```
 
+Tick 用于：延时管理、任务切换、时间统计。
 
-Tick用于：
+### 2.5 osDelay 与 HAL_Delay 区别
 
-延时管理
-任务切换
-时间统计
-五、osDelay与HAL_Delay区别
-HAL_Delay
+**HAL_Delay（裸机）**：
 
-裸机中：
-
+```c
 HAL_Delay(500);
+```
 
-特点：
+特点：CPU 阻塞等待，无法执行其他任务。
 
-CPU阻塞等待
-无法执行其他任务
-osDelay
+**osDelay（RTOS）**：
 
-RTOS中：
-
+```c
 osDelay(500);
+```
 
-特点：
+特点：当前任务进入 Blocked 状态，CPU 释放，调度其他任务运行。
 
-当前任务进入Blocked状态
-CPU释放
-调度其他任务运行
+结论：FreeRTOS 项目中推荐使用 `osDelay()`，避免大量使用 `HAL_Delay()`。
 
-因此：
+---
 
-FreeRTOS项目中推荐：
+## 3. 实验实现（Implementation）
 
-osDelay()
+创建三个任务：
 
-而不是大量使用：
+**LED Task**（GPIOF PIN9，500ms 翻转）：
 
-HAL_Delay()
-六、实验实现
-
-创建三个FreeRTOS任务：
-
-LED Task
-
-功能：
-
-控制GPIOF PIN9 LED
-
-周期：
-
-500ms
-
-代码：
-
+```c
 HAL_GPIO_TogglePin(GPIOF, GPIO_PIN_9);
-
 osDelay(500);
-UART Task
+```
 
-功能：
+**UART Task**（每 1000ms 输出状态）：
 
-串口输出任务运行状态。
+```c
+printf("FreeRTOS UART Task Running\r\n");
+```
 
-输出：
+**Monitor Task**（GPIOF PIN10，2000ms 翻转）：
 
-FreeRTOS UART Task Running
+```c
+HAL_GPIO_TogglePin(GPIOF, GPIO_PIN_10);
+```
 
-周期：
+---
 
-1000ms
-Monitor Task
-
-功能：
-
-模拟系统监控任务。
-
-控制：
-
-GPIOF PIN10
-
-周期：
-
-2000ms
-七、实验结果
+## 4. 实验结果（Experiment）
 
 运行结果：
 
-✅ FreeRTOS调度器正常运行
-
-✅ 三个Task同时工作
-
-✅ 不同优先级任务正常调度
-
-✅ UART调试信息正常输出
+* ✅ FreeRTOS 调度器正常运行
+* ✅ 三个 Task 同时工作
+* ✅ 不同优先级任务正常调度
+* ✅ UART 调试信息正常输出
 
 现象：
 
-LED1:
+* LED1：500ms 周期闪烁
+* LED2：2s 周期闪烁
+* UART：`FreeRTOS UART Task Running`
 
-500ms周期闪烁
+---
 
-LED2:
+## 5. 遇到的问题与解决（Problems & Solutions）
 
-2s周期闪烁
-
-UART:
-
-FreeRTOS UART Task Running
-八、问题记录
-问题：StartMonitorTask链接错误
+### Problem 1：StartMonitorTask 链接错误
 
 错误：
 
+```
 undefined reference to StartMonitorTask
+```
 
-原因：
+原因：创建任务时声明了 Task，但没有实现函数。
 
-创建任务时声明了Task，但是没有实现函数。
+解决：增加函数实现：
 
-解决：
-
-增加：
-
+```c
 void StartMonitorTask(void const * argument)
 {
-    while(1)
+    while (1)
     {
-
     }
 }
-九、今日总结
-
-通过Day6学习：
-
-掌握FreeRTOS任务调度基本原理。
-
-理解：
-
-Task不是并行运行，而是由Scheduler进行切换
-osDelay可以主动释放CPU
-不同任务可以通过Priority管理实时性
-
-为后续学习：
-
-Queue
-Semaphore
-Mutex
-CAN通信任务设计
-
-打下基础。
 ```
+
+---
+
+## 6. 今日总结（Summary）
+
+通过 Day06 学习：
+
+* 掌握 FreeRTOS 任务调度基本原理
+* 理解 Task 不是并行运行，而是由 Scheduler 切换
+* osDelay 可以主动释放 CPU
+* 不同任务可以通过 Priority 管理实时性
+
+为后续学习 Queue、Semaphore、Mutex 和 CAN 通信任务设计打下基础。
+
+---
+
+## 7. 下一步计划（Next Step）
+
+Day07：FreeRTOS Queue 任务通信（见 [day07.md](day07.md)）。
