@@ -287,7 +287,58 @@ heap 实现不是越高级越好，而是按场景选择：简单固定系统用
 
 ---
 
-## 9. Git 提交
+## 9. 面试问答（Interview Prep）
+
+### Q1：FreeRTOS 的 heap_1 ~ heap_5 有什么区别？实际工程怎么选？
+
+答题要点：
+
+* heap_1：只分配不释放，永不产生碎片，用于"任务创建后永不被删除"的简单系统；
+* heap_2：支持释放（最佳匹配），但空闲块不合并，长时间运行会产生碎片；
+* heap_3：直接包装 C 库 `malloc/free`，依赖链接器配置的堆大小，线程安全依赖调度器挂起；
+* heap_4：支持释放 + **相邻空闲块自动合并**，是通用工程的默认选择；
+* heap_5：算法同 heap_4，额外支持把多个不连续内存区（如内部 SRAM + 外部 SDRAM）合并管理。
+
+选型口诀：**有删除用 heap_2 起，怕碎片用 heap_4，多内存区用 heap_5，追求极简确定用 heap_1**。
+
+### Q2：heap_4 是怎么解决内存碎片问题的？
+
+答题要点：
+
+* 空闲块按地址升序组织成链表；
+* 释放内存时检查相邻块是否空闲，是则合并成一个大块；
+* 分配采用首次匹配（first fit），速度较快；
+* 效果：避免"总空闲量充足、但连续空间不足"导致的分配失败。
+
+### Q3：`pvPortMalloc` 和 C 库 `malloc` 有什么区别？
+
+答题要点：
+
+* `pvPortMalloc` 从 FreeRTOS 静态数组（`configTOTAL_HEAP_SIZE`）分配，不依赖链接器堆；
+* 内部会自动挂起调度器/进入临界区，保证多任务安全；
+* `malloc` 是否线程安全取决于 C 库实现，且内存来自链接脚本的 heap 段；
+* 嵌入式 FreeRTOS 工程中内核对象统一用 `pvPortMalloc`，两者混用会各自消耗不同内存池。
+
+### Q4：任务的内存是怎么分配的？栈大小怎么确定？
+
+答题要点：
+
+* 动态创建任务时，TCB 和任务栈都从 heap 分配（栈大小以"字"为单位，128 = 512 字节）；
+* 栈大小由任务的局部变量、函数调用深度、printf 等决定，宁大勿小；
+* 检查手段：`uxTaskGetStackHighWaterMark()` 查看栈剩余高水位；
+* 若开启 `configCHECK_FOR_STACK_OVERFLOW`，栈溢出时触发钩子。
+
+### Q5：内存分配失败怎么办？怎么预防？
+
+答题要点：
+
+* 开启 `configUSE_MALLOC_FAILED_HOOK`，分配失败时进入 `vApplicationMallocFailedHook`，工业中通常记录错误并复位；
+* 每次 `pvPortMalloc` 后必须检查返回值是否为 NULL；
+* 预防：估算峰值内存、用 `xPortGetMinimumEverFreeHeapSize` 监控历史最低水位、释放后指针置 NULL 防止重复释放。
+
+---
+
+## 10. Git 提交
 
 建议提交：
 
@@ -298,7 +349,7 @@ git commit -m "feat: Day10 FreeRTOS heap memory management demo (heap_4)"
 
 ---
 
-## 10. 下一步计划（Next Step）
+## 11. 下一步计划（Next Step）
 
 Day11：
 
