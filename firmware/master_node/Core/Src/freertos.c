@@ -31,6 +31,7 @@
 #include <app_task.h>
 #include "app_sync.h"
 #include "app_timer.h"
+#include "app_mem.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -185,6 +186,17 @@ osThreadDef(semaphoreTask,
 osThreadCreate(
             osThread(semaphoreTask),
             NULL);
+
+osThreadDef(memoryTask,
+            MemoryTask,
+            osPriorityLow,
+            0,
+            256);
+
+
+osThreadCreate(
+            osThread(memoryTask),
+            NULL);
   /* USER CODE END RTOS_THREADS */
 
 }
@@ -273,5 +285,22 @@ void StartDefaultTask(void const * argument)
 
 /* Private application code --------------------------------------------------*/
 /* USER CODE BEGIN Application */
+
+/**
+  * @brief  内存分配失败钩子：pvPortMalloc 申请失败时由内核调用
+  * @param  无
+  * @retval 无
+  *
+  * 说明：本工程堆空间不足时进入此函数。演示中打印提示后返回，
+  *       调用方 pvPortMalloc 会返回 NULL；
+  *       工业应用中通常在此进入错误处理或系统复位。
+  */
+void vApplicationMallocFailedHook(void)
+{
+    /* 用临界区而非互斥锁：hook 可能在调度器未启动时被调用 */
+    taskENTER_CRITICAL();
+    printf("[MEM] !! MALLOC FAILED HOOK !!\r\n");
+    taskEXIT_CRITICAL();
+}
 
 /* USER CODE END Application */

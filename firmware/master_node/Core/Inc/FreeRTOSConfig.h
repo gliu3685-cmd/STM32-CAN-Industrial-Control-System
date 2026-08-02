@@ -141,6 +141,8 @@ standard names. */
 
 /* USER CODE BEGIN Defines */
 /* Section where parameter definitions can be added (for instance, to override default ones in FreeRTOS.h) */
+/* Day 10：启用内存分配失败钩子（heap 空间不足时调用 vApplicationMallocFailedHook） */
+#define configUSE_MALLOC_FAILED_HOOK             1
 /* USER CODE END Defines */
 
 #endif /* FREERTOS_CONFIG_H */

@@ -90,7 +90,8 @@ FreeRTOS Scheduler
 - ✅ 双任务/三任务验证（LED 翻转 + 串口状态输出）
 - ✅ 任务通信（Queue，Producer-Consumer 模型）
 - ✅ 同步与资源保护（Semaphore + Mutex）
-- ⏳ 软件定时器、中断安全 API、内存管理（heap_1 ~ heap_5）
+- ✅ 软件定时器、中断安全 API、临界区保护
+- ✅ 内存管理（heap_1 ~ heap_5 对比 + heap_4 合并实验）
 - ⏳ 多任务采集 Demo（模拟 ADC → 滑动平均 → 串口上报）
 - ⏳ CAN 协议理论 + bxCAN 初始化（Loopback 自测）
 
@@ -161,6 +162,7 @@ STM32-CAN-Industrial-Control-System
 - [Day 7：FreeRTOS Queue 任务通信](docs/day07.md)
 - [Day 8：FreeRTOS 同步机制（Semaphore & Mutex）](docs/day08.md)
 - [Day 9：FreeRTOS 软件定时器与临界区保护](docs/day09.md)
+- [Day 10：FreeRTOS 内存管理（heap_1 ~ heap_5）](docs/day10.md)
 
 ---
 
