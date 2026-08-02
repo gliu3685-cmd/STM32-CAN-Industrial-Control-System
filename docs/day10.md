@@ -264,12 +264,16 @@ FreeRTOS Scheduler
     ├── Sensor Task → Queue → Control Task
     ├── Semaphore Task（TIM3 ISR 信号量通知）
     ├── Timer Service Task（5s 周期打印 uptime）
-    └── Memory Task（heap 演示，运行一次后自删除）
+    └── Memory Task（heap 演示一次 + 每 5s 周期监控堆状态）
 ```
 
 ---
 
 ## 8. 工程总结（Engineering Summary）
+
+> 更新：MemoryTask 实验部分运行一次后不删除自身，而是转入
+> 周期监控模式（每 5s 打印一次 `[MEM] monitor free=.. min=..`），
+> 便于随时在串口观察堆水位，也更符合实际工程的内存监控用法。
 
 本日学习重点：
 

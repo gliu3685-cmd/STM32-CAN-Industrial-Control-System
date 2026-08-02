@@ -48,6 +48,7 @@ static void MemPrintState(const char *tag)
   *   4. 重新分配 80 字节，观察空间复用
   *   5. 全部释放，验证堆恢复到初始水位
   *   6. 故意申请超大内存，触发 MallocFailedHook
+  *   7. 实验结束后转为周期监控：每 5s 打印一次堆状态
   */
 void MemoryTask(void const * argument)
 {
@@ -99,10 +100,14 @@ void MemoryTask(void const * argument)
         osMutexRelease(uartMutexHandle);
     }
 
-    /* 演示结束，删除自身任务释放其 TCB 与栈 */
     osMutexWait(uartMutexHandle, osWaitForever);
-    printf("[MEM] MemoryTask done\r\n");
+    printf("[MEM] Demo done, enter periodic monitor mode\r\n");
     osMutexRelease(uartMutexHandle);
 
-    vTaskDelete(NULL);
+    /* 周期监控：每 5s 打印一次当前堆水位（持续运行，便于随时观察） */
+    for (;;)
+    {
+        osDelay(5000);
+        MemPrintState("monitor");
+    }
 }
