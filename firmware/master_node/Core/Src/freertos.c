@@ -32,6 +32,7 @@
 #include "app_sync.h"
 #include "app_timer.h"
 #include "app_mem.h"
+#include "app_prio.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -196,6 +197,17 @@ osThreadDef(memoryTask,
 
 osThreadCreate(
             osThread(memoryTask),
+            NULL);
+
+osThreadDef(prioDemoTask,
+            PrioDemoTask,
+            osPriorityLow,
+            0,
+            256);
+
+
+osThreadCreate(
+            osThread(prioDemoTask),
             NULL);
   /* USER CODE END RTOS_THREADS */
 
