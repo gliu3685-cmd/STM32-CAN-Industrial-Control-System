@@ -93,7 +93,8 @@ FreeRTOS Scheduler
 - ✅ 软件定时器、中断安全 API、临界区保护
 - ✅ 内存管理（heap_1 ~ heap_5 对比 + heap_4 合并实验）
 - ✅ 任务优先级与优先级反转（信号量 vs 互斥锁对照实验）
-- ⏳ Event Group 事件组 + 异常检测调试 + 综合架构设计
+- ✅ Event Group 事件组（AND/OR 多条件等待）+ 任务通知
+- ⏳ 异常检测调试 + 综合架构设计
 - ⏳ CAN 协议理论 + bxCAN 初始化（Loopback 自测）
 
 ### Phase 3：CAN 通信系统 ⏳ 规划中
@@ -165,6 +166,7 @@ STM32-CAN-Industrial-Control-System
 - [Day 9：FreeRTOS 软件定时器与临界区保护](docs/day09.md)
 - [Day 10：FreeRTOS 内存管理（heap_1 ~ heap_5）](docs/day10.md)
 - [Day 11：FreeRTOS 任务设计与优先级管理](docs/day11.md)
+- [Day 12：FreeRTOS 事件组与任务通知](docs/day12.md)
 
 ---
 

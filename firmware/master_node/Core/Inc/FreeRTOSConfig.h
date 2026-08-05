@@ -143,6 +143,11 @@ standard names. */
 /* Section where parameter definitions can be added (for instance, to override default ones in FreeRTOS.h) */
 /* Day 10：启用内存分配失败钩子（heap 空间不足时调用 vApplicationMallocFailedHook） */
 #define configUSE_MALLOC_FAILED_HOOK             1
+/* Day 12：启用事件组（Event Group）与任务通知相关 API */
+#define configUSE_EVENT_GROUPS                   1
+#ifndef INCLUDE_xTaskGetCurrentTaskHandle
+#define INCLUDE_xTaskGetCurrentTaskHandle        1
+#endif
 /* USER CODE END Defines */
 
 #endif /* FREERTOS_CONFIG_H */
