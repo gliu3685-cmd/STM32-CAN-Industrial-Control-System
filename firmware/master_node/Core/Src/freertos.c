@@ -34,6 +34,7 @@
 #include "app_mem.h"
 #include "app_prio.h"
 #include "app_event.h"
+#include "app_fault.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -199,6 +200,17 @@ osThreadDef(eventDemoTask,
 osThreadCreate(
             osThread(eventDemoTask),
             NULL);
+
+osThreadDef(faultDemoTask,
+            FaultDemoTask,
+            osPriorityLow,
+            0,
+            256);
+
+
+osThreadCreate(
+            osThread(faultDemoTask),
+            NULL);
   /* USER CODE END RTOS_THREADS */
 
 }
@@ -240,6 +252,27 @@ void vApplicationMallocFailedHook(void)
     taskENTER_CRITICAL();
     printf("[MEM] !! MALLOC FAILED HOOK !!\r\n");
     taskEXIT_CRITICAL();
+}
+
+/**
+  * @brief  栈溢出钩子：configCHECK_FOR_STACK_OVERFLOW 检测到溢出时由内核调用
+  * @param  xTask: 溢出任务句柄
+  * @param  pcTaskName: 溢出任务名
+  * @retval 无
+  *
+  * 说明：任务栈已被破坏，系统状态不可信，打印后直接复位恢复。
+  *       工业应用中通常在此记录故障日志后复位或进入安全模式。
+  */
+void vApplicationStackOverflowHook(TaskHandle_t xTask, char *pcTaskName)
+{
+    (void)xTask;
+
+    /* 临界区打印：hook 运行在任务切换上下文，不能用互斥锁 */
+    taskENTER_CRITICAL();
+    printf("[FAULT] STACK OVERFLOW detected! task=%s\r\n", pcTaskName);
+    taskEXIT_CRITICAL();
+
+    NVIC_SystemReset();
 }
 
 /* USER CODE END Application */

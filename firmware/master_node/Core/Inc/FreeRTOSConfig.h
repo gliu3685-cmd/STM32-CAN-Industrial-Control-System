@@ -45,6 +45,8 @@
 
 /* USER CODE BEGIN Includes */
 /* Section where include file can be added */
+#include <stdio.h>              /* Day 13：configASSERT 打印需要 */
+#include "stm32f4xx.h"          /* Day 13：NVIC_SystemReset（断言失败后复位） */
 /* USER CODE END Includes */
 
 /* Ensure definitions are only used by the compiler, and not by the assembler. */
@@ -126,7 +128,10 @@ See http://www.FreeRTOS.org/RTOS-Cortex-M3-M4.html. */
 /* Normal assert() semantics without relying on the provision of an assert.h
 header file. */
 /* USER CODE BEGIN 1 */
-#define configASSERT( x ) if ((x) == 0) {taskDISABLE_INTERRUPTS(); for( ;; );}
+/* Day 13：断言失败时打印文件/行号并复位，便于定位内核参数错误 */
+#define configASSERT( x ) if ((x) == 0) { taskDISABLE_INTERRUPTS(); \
+    printf("[FAULT] ASSERT FAILED: %s line %d\r\n", __FILE__, __LINE__); \
+    NVIC_SystemReset(); }
 /* USER CODE END 1 */
 
 /* Definitions that map the FreeRTOS port interrupt handlers to their CMSIS
@@ -145,6 +150,10 @@ standard names. */
 #define configUSE_MALLOC_FAILED_HOOK             1
 /* Day 12：启用事件组（Event Group）与任务通知相关 API */
 #define configUSE_EVENT_GROUPS                   1
+/* Day 13：启用栈溢出检测（方法 2：切换时检查栈指针 + 栈顶填充模式） */
+#define configCHECK_FOR_STACK_OVERFLOW          2
+/* Day 13：启用栈余量查询 API（uxTaskGetStackHighWaterMark） */
+#define INCLUDE_uxTaskGetStackHighWaterMark     1
 #ifndef INCLUDE_xTaskGetCurrentTaskHandle
 #define INCLUDE_xTaskGetCurrentTaskHandle        1
 #endif

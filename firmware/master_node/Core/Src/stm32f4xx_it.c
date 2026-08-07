@@ -24,6 +24,7 @@
 #include "task.h"
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include <stdio.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -86,7 +87,15 @@ void NMI_Handler(void)
 void HardFault_Handler(void)
 {
   /* USER CODE BEGIN HardFault_IRQn 0 */
-
+  /* Day 13：判断 EXC_RETURN 的 bit2 确定故障时用 MSP 还是 PSP，
+     把自动压栈的 8 个寄存器帧指针传给 C 函数解析打印 */
+  __asm volatile(
+    " tst lr, #4    \n"
+    " ite eq        \n"
+    " mrseq r0, msp \n"
+    " mrsne r0, psp \n"
+    " b HardFault_Handler_C \n"
+  );
   /* USER CODE END HardFault_IRQn 0 */
   while (1)
   {
@@ -197,5 +206,56 @@ void TIM3_IRQHandler(void)
 }
 
 /* USER CODE BEGIN 1 */
+/**
+  * @brief  HardFault 解析函数（由 HardFault_Handler 汇编入口调用）
+  * @param  stack: 故障时硬件自动压栈的 8 个字
+  *                [0]=R0 [1]=R1 [2]=R2 [3]=R3
+  *                [4]=R12 [5]=LR [6]=PC [7]=xPSR
+  * @retval 无
+  *
+  * 打印 PC/LR 后可用 map 文件或 addr2line 定位到具体函数；
+  * 打印完成直接软复位恢复系统。
+  */
+void HardFault_Handler_C(uint32_t *stack)
+{
+    uint32_t r0  = stack[0];
+    uint32_t r1  = stack[1];
+    uint32_t r2  = stack[2];
+    uint32_t r3  = stack[3];
+    uint32_t r12 = stack[4];
+    uint32_t lr  = stack[5];
+    uint32_t pc  = stack[6];
+    uint32_t psr = stack[7];
+    /* Cortex-M4 故障状态寄存器 */
+    uint32_t cfsr  = *(volatile uint32_t *)0xE000ED28UL;
+    uint32_t hfsr  = *(volatile uint32_t *)0xE000ED2CUL;
+    uint32_t mmfar = *(volatile uint32_t *)0xE000ED34UL;
+    uint32_t bfar  = *(volatile uint32_t *)0xE000ED38UL;
+
+    printf("\r\n[FAULT] ##### HARD FAULT #####\r\n");
+    printf("[FAULT] PC =0x%08lX  LR =0x%08lX  xPSR=0x%08lX\r\n",
+           (unsigned long)pc, (unsigned long)lr, (unsigned long)psr);
+    printf("[FAULT] R0 =0x%08lX  R1 =0x%08lX  R2 =0x%08lX  R3 =0x%08lX  R12=0x%08lX\r\n",
+           (unsigned long)r0, (unsigned long)r1, (unsigned long)r2,
+           (unsigned long)r3, (unsigned long)r12);
+    printf("[FAULT] CFSR=0x%08lX (IACCVIOL=%lu DACCVIOL=%lu PRECISERR=%lu BFARVALID=%lu)\r\n",
+           (unsigned long)cfsr,
+           (unsigned long)((cfsr >> 0)  & 1U),
+           (unsigned long)((cfsr >> 1)  & 1U),
+           (unsigned long)((cfsr >> 9)  & 1U),
+           (unsigned long)((cfsr >> 12) & 1U));
+    printf("[FAULT] HFSR=0x%08lX (FORCED=%lu)\r\n",
+           (unsigned long)hfsr, (unsigned long)((hfsr >> 30) & 1U));
+    printf("[FAULT] BFAR=0x%08lX  MMFAR=0x%08lX\r\n",
+           (unsigned long)bfar, (unsigned long)mmfar);
+    printf("[FAULT] Locate: arm-none-eabi-addr2line -e f407_blink.elf -f -C 0x%08lX\r\n",
+           (unsigned long)pc);
+
+    NVIC_SystemReset();
+
+    while (1)
+    {
+    }
+}
 
 /* USER CODE END 1 */

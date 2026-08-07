@@ -167,6 +167,7 @@ STM32-CAN-Industrial-Control-System
 - [Day 10：FreeRTOS 内存管理（heap_1 ~ heap_5）](docs/day10.md)
 - [Day 11：FreeRTOS 任务设计与优先级管理](docs/day11.md)
 - [Day 12：FreeRTOS 事件组与任务通知](docs/day12.md)
+- [Day 13：FreeRTOS 异常检测与调试](docs/day13.md)
 
 ---
 
