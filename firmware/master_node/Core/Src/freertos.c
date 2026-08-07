@@ -57,8 +57,6 @@ SemaphoreHandle_t xBinarySemaphore;
 osMutexId uartMutexHandle;
 /* USER CODE END Variables */
 osThreadId defaultTaskHandle;
-osThreadId uartTaskHandle;
-osThreadId monitorTaskHandle;
 osThreadId sensorTaskHandle;
 osThreadId controlTaskHandle;
 /* Private function prototypes -----------------------------------------------*/
@@ -67,8 +65,6 @@ osThreadId controlTaskHandle;
 /* USER CODE END FunctionPrototypes */
 
 void StartDefaultTask(void const * argument);
-void StartUartTask(void const * argument);
-void StartMonitorTask(void const * argument);
 void MX_FREERTOS_Init(void); /* (MISRA C 2004 rule 8.1) */
 
 /* GetIdleTaskMemory prototype (linked to static allocation support) */
@@ -137,24 +133,6 @@ void MX_FREERTOS_Init(void) {
   /* definition and creation of defaultTask */
   osThreadDef(defaultTask, StartDefaultTask, osPriorityNormal, 0, 128);
   defaultTaskHandle = osThreadCreate(osThread(defaultTask), NULL);
-  osThreadDef(uartTask,
-              StartUartTask,
-              osPriorityLow,
-              0,
-              128);
-
-
-  uartTaskHandle =
-          osThreadCreate(osThread(uartTask), NULL);
-  osThreadDef(monitorTask,
-              StartMonitorTask,
-              osPriorityHigh,
-              0,
-              128);
-
-
-  monitorTaskHandle =
-          osThreadCreate(osThread(monitorTask), NULL);
   /* USER CODE BEGIN RTOS_THREADS */
   osThreadDef(sensorTask,
             SensorTask,
@@ -242,70 +220,7 @@ void StartDefaultTask(void const * argument)
 
 	      osDelay(500);
   }
-}
-  void StartUartTask(void const * argument)
-  {
-
-      while(1)
-      {osMutexWait(
-              uartMutexHandle,
-              osWaitForever
-          );
-
-
-      printf("UART START\r\n");
-
-          osMutexRelease(
-              uartMutexHandle
-          );
-
-          osDelay(100);
-
-          osMutexWait(
-              uartMutexHandle,
-              osWaitForever
-          );
-
-          printf("UART END\r\n");
-
-          osMutexRelease(
-              uartMutexHandle
-          );
-      }
-  }
-      void StartMonitorTask(void const * argument)
-      {
-
-          while(1)
-          {osMutexWait(
-        		  uartMutexHandle,
-        		  osWaitForever
-        		 );
-
-
-          printf("MONITOR START\r\n");
-
-
-        		 osMutexRelease(
-        		  uartMutexHandle
-        		 );
-
-              osDelay(100);
-
-              osMutexWait(
-            		  uartMutexHandle,
-            		  osWaitForever
-            		 );
-
-              printf("MONITOR END\r\n");
-
-
-        		 osMutexRelease(
-        		  uartMutexHandle
-        		 );
-          }
-
-      }/* USER CODE END StartDefaultTask */
+}/* USER CODE END StartDefaultTask */
 
 /* Private application code --------------------------------------------------*/
 /* USER CODE BEGIN Application */
