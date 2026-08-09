@@ -85,31 +85,47 @@ FreeRTOS Kernel
 Task Scheduling
 ```
 
-Tick 用于：延时管理、任务切换、时间统计。
+Tick 用于：延时管理、任务切换、时间统计。本工程 1 tick = 1ms。
 
 ### 2.5 osDelay 与 HAL_Delay 区别
 
 **HAL_Delay（裸机）**：
 
 ```c
-HAL_Delay(500);
+HAL_Delay(500);   /* CPU 阻塞等待，无法执行其他任务 */
 ```
-
-特点：CPU 阻塞等待，无法执行其他任务。
 
 **osDelay（RTOS）**：
 
 ```c
-osDelay(500);
+osDelay(500);     /* 当前任务进入 Blocked，CPU 释放，调度其他任务 */
 ```
-
-特点：当前任务进入 Blocked 状态，CPU 释放，调度其他任务运行。
 
 结论：FreeRTOS 项目中推荐使用 `osDelay()`，避免大量使用 `HAL_Delay()`。
 
 ---
 
-## 3. 实验实现（Implementation）
+## 3. 实验环境（Environment）
+
+硬件：
+
+* STM32F407VET6
+* ST-Link V2
+* USB-TTL（CH340G）
+
+软件：
+
+* STM32CubeIDE
+* FreeRTOS Kernel V10.3.1（CMSIS_V1）
+* HAL Library
+
+工程：`f407_blink`（主工程，与仓库 master_node 同步）
+
+当前阶段：Phase 2 FreeRTOS 实时系统
+
+---
+
+## 4. 实验实现（Implementation）
 
 创建三个任务：
 
@@ -124,24 +140,26 @@ osDelay(500);
 
 ```c
 printf("FreeRTOS UART Task Running\r\n");
+osDelay(1000);
 ```
 
 **Monitor Task**（GPIOF PIN10，2000ms 翻转）：
 
 ```c
 HAL_GPIO_TogglePin(GPIOF, GPIO_PIN_10);
+osDelay(2000);
 ```
 
 ---
 
-## 4. 实验结果（Experiment）
+## 5. 实验结果（Experiment）
 
 运行结果：
 
-* ✅ FreeRTOS 调度器正常运行
-* ✅ 三个 Task 同时工作
-* ✅ 不同优先级任务正常调度
-* ✅ UART 调试信息正常输出
+* FreeRTOS 调度器正常运行
+* 三个 Task 同时工作
+* 不同优先级任务正常调度
+* UART 调试信息正常输出
 
 现象：
 
@@ -151,17 +169,13 @@ HAL_GPIO_TogglePin(GPIOF, GPIO_PIN_10);
 
 ---
 
-## 5. 遇到的问题与解决（Problems & Solutions）
+## 6. 遇到的问题与解决（Problems & Solutions）
 
 ### Problem 1：StartMonitorTask 链接错误
 
-错误：
+问题：编译报 `undefined reference to StartMonitorTask`。
 
-```
-undefined reference to StartMonitorTask
-```
-
-原因：创建任务时声明了 Task，但没有实现函数。
+原因：创建任务时声明了 Task，但没有实现函数（或函数名拼写不一致）。
 
 解决：增加函数实现：
 
@@ -176,7 +190,7 @@ void StartMonitorTask(void const * argument)
 
 ---
 
-## 6. 今日总结（Summary）
+## 7. 今日总结（Summary）
 
 通过 Day06 学习：
 
@@ -189,6 +203,60 @@ void StartMonitorTask(void const * argument)
 
 ---
 
-## 7. 下一步计划（Next Step）
+## 8. 工程总结（Engineering Summary）
+
+本日学习重点：
+
+## 任务状态是理解调度的钥匙
+
+任务在 Ready/Running/Blocked 之间切换，`osDelay`、等待队列、等待信号量
+都会让任务进入 Blocked——只有 Blocked 任务才会"让出 CPU"。
+
+## 优先级决定抢占
+
+高优先级任务就绪时立即抢占低优先级任务（抢占式调度）。优先级分配
+不合理会导致低优先级任务饿死（Day11 的优先级反转专题）。
+
+---
+
+## 9. 面试问答（Interview Prep）
+
+### Q1：FreeRTOS 任务有哪几种状态？怎么切换？
+
+答题要点：
+
+* Ready / Running / Blocked / Suspended；
+* 延时或等待资源 → Blocked；延时结束或资源到达 → Ready；
+* 调度器从 Ready 中选最高优先级任务运行。
+
+### Q2：抢占式调度和协作式调度区别？
+
+答题要点：
+
+* 抢占式：高优先级任务就绪立即打断当前任务（FreeRTOS 默认）；
+* 协作式：任务必须主动让出 CPU（如 osDelay/yield）才切换。
+
+### Q3：为什么 RTOS 里不能用 HAL_Delay？
+
+答题要点：
+
+* HAL_Delay 空转占 CPU，调度器切不走；
+* 高优先级任务会被低优先级任务的 HAL_Delay 拖死；
+* 必须用 osDelay（Blocked 释放 CPU）。
+
+---
+
+## 10. Git 提交
+
+建议提交：
+
+```bash
+git add .
+git commit -m "feat: Day06 FreeRTOS task states and scheduling"
+```
+
+---
+
+## 11. 下一步计划（Next Step）
 
 Day07：FreeRTOS Queue 任务通信（见 [day07.md](day07.md)）。

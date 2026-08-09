@@ -1,4 +1,4 @@
-# Day08 - FreeRTOS同步机制学习（Semaphore & Mutex）
+# Day08 - FreeRTOS 同步机制（Semaphore & Mutex）
 
 ## 1. 今日目标（Objectives）
 
@@ -30,185 +30,84 @@
 
 ---
 
-# 2. 理论学习（Theory）
+## 2. 理论学习（Theory）
 
-## 2.1 Semaphore（二值信号量）
+### 2.1 Semaphore（二值信号量）
 
-### 什么是 Semaphore？
+Semaphore 是 FreeRTOS 中用于任务同步的机制，核心作用：
 
-Semaphore 是 FreeRTOS 中用于任务同步的机制。
-
-主要作用：
-
-> 一个任务等待某个事件发生，另一个任务负责通知。
+> 一个任务等待某个事件发生，另一个任务（或中断）负责通知。
 
 典型模型：
 
 ```
-        Event
-
-          |
-          |
-          v
-
-      Semaphore
-
-          |
-          |
-          v
-
-        Task
+Event → Semaphore → Task
 ```
 
-例如：
-
-CAN接收中断：
+例如 CAN 接收中断：
 
 ```
-CAN RX Interrupt
-
-        |
-
-        v
-
-Give Semaphore
-
-        |
-
-        v
-
-CAN Task处理数据
-
+CAN RX Interrupt → Give Semaphore → CAN Task 处理数据
 ```
 
----
-
-## 2.2 Binary Semaphore 工作流程
+### 2.2 Binary Semaphore 工作流程
 
 本实验：
 
 ```
 TIM3 Interrupt
-
-        |
-
-        v
-
+    ↓
 xSemaphoreGiveFromISR()
-
-        |
-
-        v
-
-SemaphoreTask解除阻塞
-
-        |
-
-        v
-
+    ↓
+Semaphore（计数 +1）
+    ↓
+SemaphoreTask 解除阻塞
+    ↓
 xSemaphoreTake()
-
-        |
-
-        v
-
+    ↓
 执行任务代码
-
 ```
 
-其中：
+三个核心 API：
 
-### 创建信号量
+| API | 作用 | 使用位置 |
+|---|---|---|
+| `xSemaphoreCreateBinary()` | 创建二值信号量 | 任务 |
+| `xSemaphoreTake()` | 等待/获取信号量 | 任务 |
+| `xSemaphoreGiveFromISR()` | 释放信号量（带 FromISR） | 中断 |
 
-```c
-xSemaphoreCreateBinary();
-```
+### 2.3 Mutex（互斥锁）
 
-### Task等待信号量
+#### 为什么需要 Mutex？
 
-```c
-xSemaphoreTake();
-```
-
-### 中断释放信号量
-
-```c
-xSemaphoreGiveFromISR();
-```
-
----
-
-## 2.3 Mutex（互斥锁）
-
-### 为什么需要 Mutex？
-
-多个任务可能同时访问同一个资源。
-
-例如：
+多个任务可能同时访问同一个资源，例如三个任务同时 printf 到 UART：
 
 ```
-          UART1
-
-            |
-
- ----------------------
-
- |          |          |
-
-Task1     Task2     Task3
-
-printf   printf   printf
-
+Task1 ─┐
+Task2 ─┼── UART1
+Task3 ─┘
 ```
 
-如果没有保护：
-
-可能出现：
+如果没有保护，可能出现：
 
 ```
 Temp:1Speed:UART
 ```
 
-数据交错。
+数据交错、输出损坏。
 
----
+#### Mutex 作用
 
-### Mutex 作用
-
-Mutex保证：
-
-> 同一时间只有一个任务访问共享资源。
-
-工作流程：
+Mutex 保证**同一时间只有一个任务访问共享资源**：
 
 ```
-Task
-
- |
- |
-Take Mutex
-
- |
- |
-访问资源
-
- |
- |
-Release Mutex
-
+Task ── Take Mutex ── 访问资源 ── Release Mutex
 ```
 
 其他任务：
 
 ```
-Take Mutex
-
-       |
-       |
-       v
-
-等待
-
+Take Mutex → 资源被占 → 阻塞等待 → 获得后继续
 ```
 
 ---
@@ -219,26 +118,17 @@ Take Mutex
 
 * STM32F407VET6
 * ST-Link V2
-* USB-TTL
+* USB-TTL（CH340G）
 
 软件：
 
 * STM32CubeIDE
-* FreeRTOS
+* FreeRTOS Kernel V10.3.1（CMSIS_V1）
 * HAL Library
 
-工程：
+工程：`f407_blink`（主工程，与仓库 master_node 同步）
 
-```
-STM32-CAN-Industrial-Control-System
-```
-
-当前阶段：
-
-```
-Phase 2
-FreeRTOS实时系统
-```
+当前阶段：Phase 2 FreeRTOS 实时系统
 
 ---
 
@@ -246,116 +136,54 @@ FreeRTOS实时系统
 
 ### 4.1 创建 Semaphore
 
-位置：
-
-```
-freertos.c
-MX_FREERTOS_Init()
-```
-
-代码：
+位置：freertos.c 的 `MX_FREERTOS_Init()`。
 
 ```c
 xBinarySemaphore = xSemaphoreCreateBinary();
 ```
 
----
-
 ### 4.2 创建 Semaphore Task
 
-创建任务：
-
 ```c
-osThreadDef(semaphoreTask,
-            SemaphoreTask,
-            osPriorityHigh,
-            0,
-            128);
-
-
-sensorTaskHandle =
-        osThreadCreate(
-            osThread(semaphoreTask),
-            NULL
-        );
+osThreadDef(semaphoreTask, SemaphoreTask, osPriorityHigh, 0, 128);
+osThreadCreate(osThread(semaphoreTask), NULL);
 ```
-
----
 
 ### 4.3 SemaphoreTask 实现
 
 ```c
 void SemaphoreTask(void const * argument)
 {
-
-    while(1)
+    while (1)
     {
-
-        if(xSemaphoreTake(
-             xBinarySemaphore,
-             portMAX_DELAY
-        ) == pdTRUE)
+        if (xSemaphoreTake(xBinarySemaphore, portMAX_DELAY) == pdTRUE)
         {
+            osMutexWait(uartMutexHandle, osWaitForever);
+            printf("原神牛逼!\r\n");   /* 个人测试文案，正式项目建议规范日志 */
+            osMutexRelease(uartMutexHandle);
 
-            printf("Semaphore received!\r\n");
-
-
-            HAL_GPIO_TogglePin(
-                GPIOF,
-                GPIO_PIN_10
-            );
-
+            HAL_GPIO_TogglePin(GPIOF, GPIO_PIN_10);
         }
-
     }
-
 }
 ```
 
----
-
 ### 4.4 TIM3 中断释放 Semaphore
-
-修改：
 
 ```c
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
-    if(htim->Instance == TIM3)
+    if (htim->Instance == TIM3)
     {
-
-        xSemaphoreGiveFromISR(
-            xBinarySemaphore,
-            NULL
-        );
-
+        xSemaphoreGiveFromISR(xBinarySemaphore, NULL);
     }
 }
 ```
 
-实现：
+实现链路：
 
 ```
-TIM3
-
- |
-
- |
-
-Semaphore
-
- |
-
- |
-
-SemaphoreTask
-
- |
-
- |
-
-LED10 Toggle
-
+TIM3 → Semaphore → SemaphoreTask → LED10 Toggle
 ```
 
 ---
@@ -364,40 +192,24 @@ LED10 Toggle
 
 ### 5.1 创建 UART Mutex
 
-freertos.c:
+freertos.c：
 
 ```c
 osMutexDef(uartMutex);
-
-
-uartMutexHandle =
-        osMutexCreate(
-            osMutex(uartMutex)
-        );
+uartMutexHandle = osMutexCreate(osMutex(uartMutex));
 ```
-
----
 
 ### 5.2 UART 资源保护
 
-修改任务：
+所有涉及串口打印的任务统一加锁：
 
 ```c
-osMutexWait(
-    uartMutexHandle,
-    osWaitForever
-);
-
-
+osMutexWait(uartMutexHandle, osWaitForever);
 printf("UART message\r\n");
-
-
-osMutexRelease(
-    uartMutexHandle
-);
+osMutexRelease(uartMutexHandle);
 ```
 
-保护：
+保护范围：
 
 * UART Task
 * Monitor Task
@@ -411,70 +223,23 @@ osMutexRelease(
 
 现象：
 
-LED9:
-
-```
-500ms翻转
-```
-
-LED10:
-
-```
-TIM3触发后翻转
-```
-
-串口：
-
-```
-Semaphore received!
-Semaphore received!
-Semaphore received!
-```
+* LED9：500ms 翻转（定时器任务）
+* LED10：TIM3 触发后翻转
+* 串口：每次 TIM3 中断输出一次通知
 
 验证：
 
 ```
-TIM3 ISR
-
-↓
-
-Semaphore
-
-↓
-
-Task执行
-
+TIM3 ISR → Give Semaphore → Task 解除阻塞 → 执行业务
 ```
 
----
+中断只负责"通知"，业务由任务完成。
 
 ### 实验 2：Mutex UART 保护
 
-加入Mutex前：
+加入 Mutex 前：多个任务竞争 UART，偶尔产生异常字符（数据交错）。
 
-可能出现：
-
-```
-Temp:8 Speed:1000
-FreeRTOS UART Task Running
-原神牛逼!
-```
-
-偶尔产生异常字符：
-
-```
-
-```
-
-说明：
-
-多个任务竞争UART资源。
-
----
-
-加入Mutex后：
-
-输出：
+加入 Mutex 后：
 
 ```
 System Monitor Running
@@ -485,21 +250,9 @@ FreeRTOS UART Task Running
 
 所有消息保持完整。
 
----
-
 ### 实验 3：制造竞争验证 Mutex
 
-增加：
-
-```c
-UART START
-
-delay
-
-UART END
-```
-
-测试结果：
+增加"START / 延时 / END"打印片段制造竞争，测试结果：
 
 ```
 MONITOR START
@@ -509,7 +262,7 @@ UART START
 UART END
 ```
 
-没有出现：
+没有出现交错：
 
 ```
 MONITOR START
@@ -518,9 +271,7 @@ MONITOR END
 UART END
 ```
 
-证明：
-
-Mutex成功保护临界资源。
+证明 Mutex 成功保护临界资源。
 
 ---
 
@@ -528,44 +279,23 @@ Mutex成功保护临界资源。
 
 ### Problem 1
 
-### 问题：
+问题：编译报 `implicit declaration of function 'printf'`。
 
-编译错误：
+原因：app_sync.c 缺少 stdio 声明。
 
-```
-implicit declaration of function 'printf'
-```
-
-### 原因：
-
-app_sync.c缺少stdio声明。
-
-### 解决：
-
-添加：
+解决：添加：
 
 ```c
 #include <stdio.h>
 ```
 
----
-
 ### Problem 2
 
-### 问题：
+问题：编译报 `osMutexWait undeclared`、`uartMutexHandle undeclared`。
 
-```
-osMutexWait undeclared
-uartMutexHandle undeclared
-```
+原因：多文件之间变量和 API 不可见。
 
-### 原因：
-
-多文件之间变量和API不可见。
-
-### 解决：
-
-添加：
+解决：添加：
 
 ```c
 #include "cmsis_os.h"
@@ -577,37 +307,19 @@ uartMutexHandle undeclared
 extern osMutexId uartMutexHandle;
 ```
 
----
-
 ### Problem 3
 
-### 问题：
+问题：LED10 闪烁但 Semaphore 未验证。
 
-LED10闪烁但Semaphore未验证。
+原因：TIM3 中断直接控制 GPIO（`HAL_GPIO_TogglePin`），没有经过 Semaphore。
 
-### 原因：
-
-TIM3中断直接控制GPIO：
+解决：修改为中断只通知任务：
 
 ```c
-HAL_GPIO_TogglePin()
+xSemaphoreGiveFromISR(xBinarySemaphore, NULL);
 ```
 
-没有经过Semaphore。
-
-### 解决：
-
-修改为：
-
-```c
-xSemaphoreGiveFromISR()
-```
-
-实现：
-
-```
-ISR通知Task
-```
+实现 ISR 通知 Task 的模型。
 
 ---
 
@@ -615,129 +327,101 @@ ISR通知Task
 
 完成：
 
-* [x] FreeRTOS Binary Semaphore实验
-* [x] TIM3中断同步Task
-* [x] ISR-to-Task事件通知
-* [x] FreeRTOS Mutex实验
-* [x] UART共享资源保护
+* [x] FreeRTOS Binary Semaphore 实验
+* [x] TIM3 中断同步 Task
+* [x] ISR-to-Task 事件通知
+* [x] FreeRTOS Mutex 实验
+* [x] UART 共享资源保护
 * [x] 多任务调试验证
 
-当前FreeRTOS架构：
+当前 FreeRTOS 架构：
 
 ```
-                 FreeRTOS
-
-
-          +----------------+
-
-          |                |
-
-
-      SensorTask      UARTTask
-
-          |                |
-
-          |                |
-
-          +------ UART ----+
-
-                 |
-
-              Mutex
-
-
-
-          SemaphoreTask
-
-                 |
-
-              Semaphore
-
-                 |
-
-              TIM3 ISR
-
+FreeRTOS
+  ├── SensorTask ──→ Queue ──→ ControlTask
+  ├── UART / Monitor / Semaphore Task ──→ UART（Mutex 保护）
+  └── SemaphoreTask ←── Semaphore ←── TIM3 ISR
 ```
 
 ---
 
 ## 9. 工程总结（Engineering Summary）
 
-本日学习重点不是API调用，而是理解实时系统设计思想：
+本日学习重点不是 API 调用，而是理解实时系统设计思想：
 
-### 中断不要处理业务
+## 中断不要处理业务
 
 错误：
 
 ```
-Interrupt
-
- |
-
-直接控制外设
-
+Interrupt → 直接控制外设
 ```
 
 正确：
 
 ```
-Interrupt
-
- |
-
-通知Task
-
- |
-
-Task处理业务
-
+Interrupt → 通知 Task → Task 处理业务
 ```
+
+中断必须"快进快出"，耗时业务放任务里。
+
+## 共享资源必须保护
+
+例如 UART、SPI、I2C、Flash 等外设被多任务共享时，必须用 Mutex 保证
+同一时刻只有一个访问者，否则数据交错、逻辑错乱。
 
 ---
 
-### 共享资源必须保护
+## 10. 面试问答（Interview Prep）
 
-例如：
+### Q1：信号量和互斥锁有什么区别？
 
-* UART
-* SPI
-* I2C
-* Flash
+答题要点：
 
-需要：
+* 信号量管"数量/通知"（无所有权，谁都能 give/take）；
+* 互斥锁管"排他"（有所有权，只能持有者释放，支持优先级继承）；
+* 保护共享资源用互斥锁，事件通知用信号量。
 
-```
-Mutex
+### Q2：中断里为什么必须用 FromISR 版本 API？
 
-```
+答题要点：
+
+* 普通 API 可能阻塞（挂起调度器/临界区），中断上下文不允许；
+* FromISR 版本不阻塞，并通过参数告知是否唤醒高优先级任务，
+  由调用方决定是否立即切换。
+
+### Q3：二值信号量和计数信号量区别？
+
+答题要点：
+
+* 二值信号量只有 0/1，适合"事件发生/未发生"；
+* 计数信号量可累计多次事件，适合"资源池有 N 个"；
+* 中断给多次、任务取多次时用计数信号量。
 
 ---
 
-## 10. Git 提交
+## 11. Git 提交
 
 建议提交：
 
 ```bash
 git add .
-
-git commit -m "feat: implement FreeRTOS semaphore and mutex synchronization"
+git commit -m "feat: Day08 FreeRTOS semaphore and mutex synchronization"
 ```
 
 ---
 
-## 11. 下一步计划（Next Step）
+## 12. 下一步计划（Next Step）
 
-Day09（已完成）：
-
-FreeRTOS 高级机制——Software Timer（软件定时器）、FromISR、临界区保护（见 [day09.md](day09.md)）。
+Day09（已完成）：FreeRTOS 高级机制——Software Timer（软件定时器）、
+FromISR、临界区保护（见 [day09.md](day09.md)）。
 
 后续：
 
 ```
-CAN通信任务
+CAN 通信任务
 电机控制任务
 故障监控任务
-
 ```
 
 建立实时调度基础。
