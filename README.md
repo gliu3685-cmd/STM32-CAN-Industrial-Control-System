@@ -168,6 +168,7 @@ STM32-CAN-Industrial-Control-System
 - [Day 11：FreeRTOS 任务设计与优先级管理](docs/day11.md)
 - [Day 12：FreeRTOS 事件组与任务通知](docs/day12.md)
 - [Day 13：FreeRTOS 异常检测与调试](docs/day13.md)
+- [Day 14：FreeRTOS 综合架构设计（Phase 2 收官）](docs/day14.md)
 
 ---
 

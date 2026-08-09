@@ -27,14 +27,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include <stdio.h>
-#include <app_queue.h>
-#include <app_task.h>
-#include "app_sync.h"
-#include "app_timer.h"
-#include "app_mem.h"
-#include "app_prio.h"
-#include "app_event.h"
-#include "app_fault.h"
+#include "app_arch.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -122,12 +115,10 @@ void MX_FREERTOS_Init(void) {
 
   /* USER CODE BEGIN RTOS_TIMERS */
   /* start timers, add new ones, ... */
-	Timer_Init();
   /* USER CODE END RTOS_TIMERS */
 
   /* USER CODE BEGIN RTOS_QUEUES */
   /* add queues, ... */
-	Queue_Init();
   /* USER CODE END RTOS_QUEUES */
 
   /* Create the thread(s) */
@@ -135,81 +126,16 @@ void MX_FREERTOS_Init(void) {
   osThreadDef(defaultTask, StartDefaultTask, osPriorityNormal, 0, 128);
   defaultTaskHandle = osThreadCreate(osThread(defaultTask), NULL);
   /* USER CODE BEGIN RTOS_THREADS */
-  osThreadDef(sensorTask,
-            SensorTask,
-            osPriorityNormal,
-            0,
-            128);
-
-
-sensorTaskHandle =
-        osThreadCreate(osThread(sensorTask), NULL);
-
-
-
-osThreadDef(controlTask,
-            ControlTask,
-            osPriorityHigh,
-            0,
-            128);
-
-
-controlTaskHandle =
-        osThreadCreate(osThread(controlTask), NULL);
-
-osThreadDef(semaphoreTask,
-            SemaphoreTask,
-            osPriorityNormal,
-            0,
-            128);
-
-
-osThreadCreate(
-            osThread(semaphoreTask),
-            NULL);
-
-osThreadDef(memoryTask,
-            MemoryTask,
+  /* Day 14：综合架构（Phase 2 收官）——收敛演示任务，启动正式系统任务 */
+  osThreadDef(archTask,
+            ArchDemoTask,
             osPriorityLow,
             0,
             256);
 
 
 osThreadCreate(
-            osThread(memoryTask),
-            NULL);
-
-osThreadDef(prioDemoTask,
-            PrioDemoTask,
-            osPriorityLow,
-            0,
-            256);
-
-
-osThreadCreate(
-            osThread(prioDemoTask),
-            NULL);
-
-osThreadDef(eventDemoTask,
-            EventDemoTask,
-            osPriorityLow,
-            0,
-            256);
-
-
-osThreadCreate(
-            osThread(eventDemoTask),
-            NULL);
-
-osThreadDef(faultDemoTask,
-            FaultDemoTask,
-            osPriorityLow,
-            0,
-            256);
-
-
-osThreadCreate(
-            osThread(faultDemoTask),
+            osThread(archTask),
             NULL);
   /* USER CODE END RTOS_THREADS */
 
