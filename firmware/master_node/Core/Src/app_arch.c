@@ -174,10 +174,19 @@ static void CanRxTask(void *pv)
     {
         if (xQueueReceive(xCanRxQueue, &frame, portMAX_DELAY) == pdTRUE)
         {
-            ArchPrint("[CAN_RX] node=%lu dlc=%u data=%02X %02X %02X %02X\r\n",
-                      (unsigned long)frame.node_id, (unsigned)frame.dlc,
-                      (unsigned)frame.data[0], (unsigned)frame.data[1],
-                      (unsigned)frame.data[2], (unsigned)frame.data[3]);
+            if (frame.dlc >= 4)
+            {
+                ArchPrint("[CAN_RX] node=%lu dlc=%u data=%02X %02X %02X %02X\r\n",
+                          (unsigned long)frame.node_id, (unsigned)frame.dlc,
+                          (unsigned)frame.data[0], (unsigned)frame.data[1],
+                          (unsigned)frame.data[2], (unsigned)frame.data[3]);
+            }
+            else
+            {
+                ArchPrint("[CAN_RX] node=%lu dlc=%u data=%02X %02X\r\n",
+                          (unsigned long)frame.node_id, (unsigned)frame.dlc,
+                          (unsigned)frame.data[0], (unsigned)frame.data[1]);
+            }
 
             xSemaphoreTake(xSysMutex, portMAX_DELAY);
             if (frame.node_id < ARCH_NODE_NUM)
@@ -376,9 +385,9 @@ void ArchDemoTask(void const * argument)
     xTaskCreate(SimNodeTask,      "sim",   256, NULL, 2, NULL);
     xTaskCreate(CanRxTask,        "canrx", 256, NULL, 4, NULL);
     xTaskCreate(ControlTask,      "ctrl",  256, NULL, 5, NULL);
-    xTaskCreate(MotorTask,        "motor", 128, NULL, 3, NULL);
-    xTaskCreate(FaultMonitorTask, "fault", 128, NULL, 4, NULL);
-    xTaskCreate(CanTxTask,        "cantx", 128, NULL, 2, NULL);
+    xTaskCreate(MotorTask,        "motor", 256, NULL, 3, NULL);
+    xTaskCreate(FaultMonitorTask, "fault", 256, NULL, 4, NULL);
+    xTaskCreate(CanTxTask,        "cantx", 256, NULL, 2, NULL);
     xTaskCreate(DebugTask,        "debug", 256, NULL, 1, NULL);
 
     /* 架构任务使命完成，删除自身 */
