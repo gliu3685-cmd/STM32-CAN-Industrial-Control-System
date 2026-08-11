@@ -73,12 +73,6 @@
 #define configUSE_MUTEXES                        1
 #define configQUEUE_REGISTRY_SIZE                8
 #define configUSE_PORT_OPTIMISED_TASK_SELECTION  1
-/* USER CODE BEGIN TIMERS */
-#define configUSE_TIMERS                         1
-#define configTIMER_TASK_PRIORITY                ( 2 )
-#define configTIMER_QUEUE_LENGTH                 10
-#define configTIMER_TASK_STACK_DEPTH             ( configMINIMAL_STACK_SIZE )
-/* USER CODE END TIMERS */
 /* USER CODE BEGIN MESSAGE_BUFFER_LENGTH_TYPE */
 /* Defaults to size_t for backward compatibility, but can be changed
    if lengths will always be less than the number of bytes in a size_t. */
@@ -146,6 +140,13 @@ standard names. */
 
 /* USER CODE BEGIN Defines */
 /* Section where parameter definitions can be added (for instance, to override default ones in FreeRTOS.h) */
+/* Day 9：启用软件定时器（Timer Service Task），心跳定时器依赖 */
+#define configUSE_TIMERS                      1
+#define configTIMER_TASK_PRIORITY             (configMAX_PRIORITIES - 1)
+#define configTIMER_QUEUE_LENGTH              10
+#define configTIMER_TASK_STACK_DEPTH          256
+/* xEventGroupSetBitsFromISR 依赖：允许从 ISR 挂起定时器回调 */
+#define INCLUDE_xTimerPendFunctionCall        1
 /* Day 10：启用内存分配失败钩子（heap 空间不足时调用 vApplicationMallocFailedHook） */
 #define configUSE_MALLOC_FAILED_HOOK             1
 /* Day 12：启用事件组（Event Group）与任务通知相关 API */

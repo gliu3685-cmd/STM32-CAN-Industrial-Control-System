@@ -9,10 +9,11 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include "cmsis_os.h"
+#include "can.h"
 #include "tim.h"
 #include "usart.h"
 #include "gpio.h"
-#include "semphr.h"
+
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include <stdio.h>
@@ -83,6 +84,7 @@ int main(void)
   MX_GPIO_Init();
   MX_USART1_UART_Init();
   MX_TIM3_Init();
+  MX_CAN1_Init();
   /* USER CODE BEGIN 2 */
   printf("F407 Master Start!\r\n");
   HAL_TIM_Base_Start_IT(&htim3);
@@ -98,11 +100,14 @@ int main(void)
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
+  while (1)
+  {
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
   }
   /* USER CODE END 3 */
+}
 
 /**
   * @brief System Clock Configuration

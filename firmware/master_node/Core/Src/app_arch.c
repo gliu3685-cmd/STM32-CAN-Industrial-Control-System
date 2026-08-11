@@ -21,6 +21,7 @@
   */
 
 #include "app_arch.h"
+#include "app_can.h"
 #include <stdio.h>
 #include <stdarg.h>
 #include "FreeRTOS.h"
@@ -39,23 +40,13 @@ extern osMutexId uartMutexHandle;
 #define ARCH_RX_TIMEOUT_MS  (1500U)    /* 超过 1.5s 未收到帧判为离线 */
 #define ARCH_TEMP_LIMIT     (80)       /* 节点 0 温度告警阈值（℃） */
 #define ARCH_NODE0_DROP_CNT (25U)      /* 演示：25 帧后模拟节点 0 掉线 */
+#define ARCH_USE_SIM_NODE   (0)        /* Day15：0=真实CAN驱动，1=启用模拟数据源 */
 
 /* 事件位定义 */
 #define EVT_HEARTBEAT   (1 << 0)       /* 1s 心跳 */
 #define EVT_NEW_FRAME   (1 << 1)       /* 收到新 CAN 帧 */
 #define EVT_TEMP_FAULT  (1 << 2)       /* 温度越限 */
 #define EVT_OFFLINE     (1 << 3)       /* 节点离线 */
-
-/**
-  * @brief  模拟 CAN 帧（Day15 将替换为真实 CAN 接收结构）
-  */
-typedef struct
-{
-    uint32_t node_id;      /* 节点 ID：0/1 */
-    uint8_t  data[8];      /* 数据负载 */
-    uint8_t  dlc;          /* 数据长度 */
-    uint32_t tick;         /* 收帧时刻 */
-} CanFrame_t;
 
 /**
   * @brief  共享系统状态（由 xSysMutex 保护）
@@ -81,11 +72,27 @@ static SemaphoreHandle_t  xSysMutex;        /* 共享状态互斥锁 */
 static TimerHandle_t      xHeartbeatTimer;  /* 1s 心跳定时器 */
 
 /**
+  * @brief  将收到的 CAN 帧投递到系统接收队列（ISR 安全版本）
+  *         供 CAN 接收中断回调调用；唤醒接收任务后触发调度
+  * @param  pFrame: 指向待投递帧
+  * @retval 无
+  */
+void ArchPostCanFrame(CanFrame_t *pFrame)
+{
+    BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+
+    xQueueSendFromISR(xCanRxQueue, pFrame, &xHigherPriorityTaskWoken);
+    xEventGroupSetBitsFromISR(xSysEvents, EVT_NEW_FRAME, &xHigherPriorityTaskWoken);
+
+    portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
+}
+
+/**
   * @brief  加锁打印（UART 互斥锁保护，防止多任务输出交错）
   * @param  fmt: 格式串（支持 printf 格式参数）
   * @retval 无
   */
-static void ArchPrint(const char *fmt, ...)
+void ArchPrint(const char *fmt, ...)
 {
     va_list args;
 
@@ -122,6 +129,7 @@ static void HeartbeatCallback(TimerHandle_t xTimer)
   * @param  pv: 未使用
   * @retval 无
   */
+#if ARCH_USE_SIM_NODE
 static void SimNodeTask(void *pv)
 {
     CanFrame_t frame;
@@ -158,6 +166,7 @@ static void SimNodeTask(void *pv)
         vTaskDelay(pdMS_TO_TICKS(300));
     }
 }
+#endif /* ARCH_USE_SIM_NODE */
 
 /**
   * @brief  CAN 接收任务：从队列取帧并更新共享状态（Day15 接真实 CAN）
@@ -321,7 +330,8 @@ static void CanTxTask(void *pv)
 
     for (;;)
     {
-        ArchPrint("[CAN_TX] master heartbeat seq=%lu\r\n", (unsigned long)seq++);
+        /* Day15：真实 CAN 发送，USB-CAN 分析仪可在电脑端观测 */
+        CanSendHeartbeat(seq++);
         vTaskDelay(pdMS_TO_TICKS(1000));
     }
 }
@@ -379,16 +389,21 @@ void ArchDemoTask(void const * argument)
     }
     xTimerStart(xHeartbeatTimer, 0);
 
-    ArchPrint("== Day14 System Architecture started ==\r\n");
+    ArchPrint("== Day15 System Architecture started (CAN) ==\r\n");
 
     /* 创建系统任务：优先级体现实时性（控制/接收/故障 > 电机 > 发送/模拟 > 调试） */
+#if ARCH_USE_SIM_NODE
     xTaskCreate(SimNodeTask,      "sim",   256, NULL, 2, NULL);
+#endif
     xTaskCreate(CanRxTask,        "canrx", 256, NULL, 4, NULL);
     xTaskCreate(ControlTask,      "ctrl",  256, NULL, 5, NULL);
     xTaskCreate(MotorTask,        "motor", 256, NULL, 3, NULL);
     xTaskCreate(FaultMonitorTask, "fault", 256, NULL, 4, NULL);
     xTaskCreate(CanTxTask,        "cantx", 256, NULL, 2, NULL);
     xTaskCreate(DebugTask,        "debug", 256, NULL, 1, NULL);
+
+    /* Day15：启动真实 CAN 外设（过滤器 + 接收中断） */
+    CanStart();
 
     /* 架构任务使命完成，删除自身 */
     vTaskDelete(NULL);

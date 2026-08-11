@@ -22,7 +22,6 @@
 #include "task.h"
 #include "main.h"
 #include "cmsis_os.h"
-#include "usart.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
@@ -51,20 +50,18 @@ SemaphoreHandle_t xBinarySemaphore;
 osMutexId uartMutexHandle;
 /* USER CODE END Variables */
 osThreadId defaultTaskHandle;
-osThreadId sensorTaskHandle;
-osThreadId controlTaskHandle;
+
 /* Private function prototypes -----------------------------------------------*/
 /* USER CODE BEGIN FunctionPrototypes */
 
 /* USER CODE END FunctionPrototypes */
 
 void StartDefaultTask(void const * argument);
+
 void MX_FREERTOS_Init(void); /* (MISRA C 2004 rule 8.1) */
 
 /* GetIdleTaskMemory prototype (linked to static allocation support) */
 void vApplicationGetIdleTaskMemory( StaticTask_t **ppxIdleTaskTCBBuffer, StackType_t **ppxIdleTaskStackBuffer, uint32_t *pulIdleTaskStackSize );
-/* GetTimerTaskMemory prototype (linked to static allocation support) */
-void vApplicationGetTimerTaskMemory( StaticTask_t **ppxTimerTaskTCBBuffer, StackType_t **ppxTimerTaskStackBuffer, uint32_t *pulTimerTaskStackSize );
 
 /* USER CODE BEGIN GET_IDLE_TASK_MEMORY */
 static StaticTask_t xIdleTaskTCBBuffer;
@@ -78,18 +75,6 @@ void vApplicationGetIdleTaskMemory( StaticTask_t **ppxIdleTaskTCBBuffer, StackTy
   /* place for user code */
 }
 /* USER CODE END GET_IDLE_TASK_MEMORY */
-
-/* USER CODE BEGIN GET_TIMER_TASK_MEMORY */
-static StaticTask_t xTimerTaskTCBBuffer;
-static StackType_t xTimerStack[configTIMER_TASK_STACK_DEPTH];
-
-void vApplicationGetTimerTaskMemory( StaticTask_t **ppxTimerTaskTCBBuffer, StackType_t **ppxTimerTaskStackBuffer, uint32_t *pulTimerTaskStackSize )
-{
-  *ppxTimerTaskTCBBuffer = &xTimerTaskTCBBuffer;
-  *ppxTimerTaskStackBuffer = &xTimerStack[0];
-  *pulTimerTaskStackSize = configTIMER_TASK_STACK_DEPTH;
-}
-/* USER CODE END GET_TIMER_TASK_MEMORY */
 
 /**
   * @brief  FreeRTOS initialization
@@ -125,6 +110,7 @@ void MX_FREERTOS_Init(void) {
   /* definition and creation of defaultTask */
   osThreadDef(defaultTask, StartDefaultTask, osPriorityNormal, 0, 128);
   defaultTaskHandle = osThreadCreate(osThread(defaultTask), NULL);
+
   /* USER CODE BEGIN RTOS_THREADS */
   /* Day 14：综合架构（Phase 2 收官）——收敛演示任务，启动正式系统任务 */
   osThreadDef(archTask,
@@ -156,9 +142,11 @@ void StartDefaultTask(void const * argument)
   {
 	  HAL_GPIO_TogglePin(GPIOF, GPIO_PIN_9);
 
-	      osDelay(500);
+	      /* Day15：LED 2s 周期闪烁（亮1s/灭1s），用于确认新固件烧录成功 */
+	      osDelay(1000);
   }
-}/* USER CODE END StartDefaultTask */
+  /* USER CODE END StartDefaultTask */
+}
 
 /* Private application code --------------------------------------------------*/
 /* USER CODE BEGIN Application */
@@ -199,6 +187,24 @@ void vApplicationStackOverflowHook(TaskHandle_t xTask, char *pcTaskName)
     taskEXIT_CRITICAL();
 
     NVIC_SystemReset();
+}
+
+/**
+  * @brief  定时器服务任务内存（静态分配）
+  *         CubeMX 重新生成可能删除此函数，故放 USER CODE 保护区
+  * @param  ppxTimerTaskTCBBuffer: TCB 缓冲区指针
+  * @param  ppxTimerTaskStackBuffer: 栈缓冲区指针
+  * @param  pulTimerTaskStackSize: 栈大小（字）
+  * @retval 无
+  */
+static StaticTask_t xTimerTaskTCBBuffer;
+static StackType_t xTimerStack[configTIMER_TASK_STACK_DEPTH];
+
+void vApplicationGetTimerTaskMemory( StaticTask_t **ppxTimerTaskTCBBuffer, StackType_t **ppxTimerTaskStackBuffer, uint32_t *pulTimerTaskStackSize )
+{
+  *ppxTimerTaskTCBBuffer = &xTimerTaskTCBBuffer;
+  *ppxTimerTaskStackBuffer = &xTimerStack[0];
+  *pulTimerTaskStackSize = configTIMER_TASK_STACK_DEPTH;
 }
 
 /* USER CODE END Application */
