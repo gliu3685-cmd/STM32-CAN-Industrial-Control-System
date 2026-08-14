@@ -67,6 +67,30 @@ void NodeCanInit(void)
 void CanStart(void)
 {
     CAN_FilterTypeDef filter = {0};
+    GPIO_InitTypeDef diag = {0};
+
+    /* 临时诊断：读 PA11（CAN1_RX）当前电平，判断 TJA1050 RXD 是否输出隐性高电平 */
+    diag.Pin = GPIO_PIN_11;
+    diag.Mode = GPIO_MODE_INPUT;
+    diag.Pull = GPIO_NOPULL;
+    HAL_GPIO_Init(GPIOA, &diag);
+    NodePrint("[NODE2] PA11 level=%u\r\n",
+              (unsigned)HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_11));
+
+    /* 恢复 CAN1 引脚：PA11=RX（输入上拉），PA12=TX（复用推挽） */
+    diag.Mode = GPIO_MODE_INPUT;
+    diag.Pull = GPIO_PULLUP;
+    diag.Pin = GPIO_PIN_11;
+    HAL_GPIO_Init(GPIOA, &diag);
+    diag.Mode = GPIO_MODE_AF_PP;
+    diag.Speed = GPIO_SPEED_FREQ_HIGH;
+    diag.Pin = GPIO_PIN_12;
+    diag.Pull = GPIO_NOPULL;
+    HAL_GPIO_Init(GPIOA, &diag);
+
+    /* 清调试冻结位：Debug 模式下 ST-LINK 可能置 DBF=1，
+       导致 CAN 内核退不出初始化模式（INAK 恒为 1，Start 超时） */
+    CAN1->MCR &= ~CAN_MCR_DBF;
 
     /* 掩码模式：Mask=0x7FF（11 位全比较），Filter=0x101 → 只收命令帧 */
     filter.FilterIdHigh         = (uint16_t)(CAN_CMD_ID << 5);
@@ -79,24 +103,21 @@ void CanStart(void)
     filter.FilterScale          = CAN_FILTERSCALE_32BIT;
     filter.FilterActivation     = CAN_FILTER_ENABLE;
 
-    if (HAL_CAN_ConfigFilter(&hcan1, &filter) != HAL_OK)
-    {
-        NodePrint("[NODE2] filter config failed!\r\n");
-    }
-    if (HAL_CAN_Start(&hcan1) != HAL_OK)
-    {
-        NodePrint("[NODE2] CAN start failed!\r\n");
-    }
-    if (HAL_CAN_ActivateNotification(&hcan1,
+    HAL_StatusTypeDef r1 = HAL_CAN_ConfigFilter(&hcan1, &filter);
+    HAL_StatusTypeDef r2 = HAL_CAN_Start(&hcan1);
+    HAL_StatusTypeDef r3 = HAL_CAN_ActivateNotification(&hcan1,
                                      CAN_IT_RX_FIFO0_MSG_PENDING |
                                      CAN_IT_ERROR |
                                      CAN_IT_BUSOFF |
-                                     CAN_IT_LAST_ERROR_CODE) != HAL_OK)
-    {
-        NodePrint("[NODE2] RX notification failed!\r\n");
-    }
+                                     CAN_IT_LAST_ERROR_CODE);
 
-    NodePrint("[NODE2] CAN started, 500kbps, filter=0x%03X\r\n", CAN_CMD_ID);
+    NodePrint("[NODE2] CanStart f=%d s=%d n=%d State=%u err=0x%08lX\r\n",
+              (int)r1, (int)r2, (int)r3,
+              (unsigned)hcan1.State, (unsigned long)hcan1.ErrorCode);
+    NodePrint("[NODE2] MSR=0x%08lX MCR=0x%08lX BTR=0x%08lX\r\n",
+              (unsigned long)hcan1.Instance->MSR,
+              (unsigned long)hcan1.Instance->MCR,
+              (unsigned long)hcan1.Instance->BTR);
 }
 
 /**
@@ -111,8 +132,8 @@ void HAL_CAN_ErrorCallback(CAN_HandleTypeDef *hcan)
         return;
     }
 
-    printf("[NODE2] CAN_ERR code=0x%08lX\r\n", (unsigned long)hcan->ErrorCode);
-
+    /* ISR 上下文禁止 printf（会与任务打印交错丢字），
+       错误详情由 CanTxTask 每 5 秒读取 ESR 打印 */
     hcan->State = HAL_CAN_STATE_READY;
 }
 
@@ -137,7 +158,13 @@ void CanSendMotorData(uint16_t speed)
 
     if (HAL_CAN_AddTxMessage(&hcan1, &tx, data, &mailbox) != HAL_OK)
     {
-        NodePrint("[NODE2] add mailbox failed!\r\n");
+        uint32_t esr = hcan1.Instance->ESR;
+        NodePrint("[NODE2] add mailbox failed! State=%u LEC=%lu TEC=%lu REC=%lu TSR=0x%08lX\r\n",
+                  (unsigned)hcan1.State,
+                  (unsigned long)((esr >> 4U) & 0x7U),
+                  (unsigned long)((esr >> 24U) & 0xFFU),
+                  (unsigned long)((esr >> 16U) & 0xFFU),
+                  (unsigned long)hcan1.Instance->TSR);
     }
 }
 
@@ -194,6 +221,7 @@ void CanRxTask(void const *pv)
 void CanTxTask(void const *pv)
 {
     uint16_t speed = 0;
+    uint32_t cnt = 0;
 
     (void)pv;
 
@@ -204,12 +232,25 @@ void CanTxTask(void const *pv)
         CanSendMotorData(speed);
         NodePrint("[NODE2] TX 0x202 speed=%u\r\n", (unsigned)speed);
 
+        if ((cnt % 5U) == 0U)
+        {
+            uint32_t esr = hcan1.Instance->ESR;
+            NodePrint("[NODE2] DBG State=%u LEC=%lu TEC=%lu REC=%lu PCLK1=%lu SYSCLK=%lu\r\n",
+                      (unsigned)hcan1.State,
+                      (unsigned long)((esr >> 4U) & 0x7U),
+                      (unsigned long)((esr >> 24U) & 0xFFU),
+                      (unsigned long)((esr >> 16U) & 0xFFU),
+                      (unsigned long)HAL_RCC_GetPCLK1Freq(),
+                      (unsigned long)SystemCoreClock);
+        }
+
         speed += 100;
         if (speed > 1000)
         {
             speed = 0;
         }
 
+        cnt++;
         vTaskDelay(pdMS_TO_TICKS(1000));
     }
 }

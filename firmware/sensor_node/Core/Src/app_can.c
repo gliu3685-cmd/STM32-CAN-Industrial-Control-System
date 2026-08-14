@@ -67,6 +67,30 @@ void NodeCanInit(void)
 void CanStart(void)
 {
     CAN_FilterTypeDef filter = {0};
+    GPIO_InitTypeDef diag = {0};
+
+    /* 临时诊断：读 PA11（CAN1_RX）当前电平，判断 TJA1050 RXD 是否输出隐性高电平 */
+    diag.Pin = GPIO_PIN_11;
+    diag.Mode = GPIO_MODE_INPUT;
+    diag.Pull = GPIO_NOPULL;
+    HAL_GPIO_Init(GPIOA, &diag);
+    NodePrint("[NODE1] PA11 level=%u\r\n",
+              (unsigned)HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_11));
+
+    /* 恢复 CAN1 引脚：PA11=RX（输入上拉），PA12=TX（复用推挽） */
+    diag.Mode = GPIO_MODE_INPUT;
+    diag.Pull = GPIO_PULLUP;
+    diag.Pin = GPIO_PIN_11;
+    HAL_GPIO_Init(GPIOA, &diag);
+    diag.Mode = GPIO_MODE_AF_PP;
+    diag.Speed = GPIO_SPEED_FREQ_HIGH;
+    diag.Pin = GPIO_PIN_12;
+    diag.Pull = GPIO_NOPULL;
+    HAL_GPIO_Init(GPIOA, &diag);
+
+    /* 清除调试冻结位：Debug 模式下 ST-LINK 可能置 DBF=1，
+       导致 CAN 内核退不出初始化模式（INAK 恒为 1，Start 超时） */
+    CAN1->MCR &= ~CAN_MCR_DBF;
 
     /* 掩码模式：Mask=0x7FF（11 位全比较），Filter=0x101 → 只收命令帧 */
     filter.FilterIdHigh         = (uint16_t)(CAN_CMD_ID << 5);
@@ -109,8 +133,8 @@ void HAL_CAN_ErrorCallback(CAN_HandleTypeDef *hcan)
         return;
     }
 
-    printf("[NODE1] CAN_ERR code=0x%08lX\r\n", (unsigned long)hcan->ErrorCode);
-
+    /* ISR 上下文禁止 printf（会与任务打印交错丢字），
+       错误详情由 CanTxTask 每 5 秒读取 ESR 打印 */
     /* 恢复状态机：错误中断处理完后让外设回到可发送状态 */
     hcan->State = HAL_CAN_STATE_READY;
 }
@@ -213,11 +237,13 @@ void CanTxTask(void const *pv)
         /* 每 5 秒打印一次 CAN 状态快照（便于串口抓取诊断信息） */
         if ((cnt % 5U) == 0U)
         {
-            NodePrint("[NODE1] DBG State=%u MSR=0x%08lX MCR=0x%08lX BTR=0x%08lX\r\n",
+            NodePrint("[NODE1] DBG State=%u LEC=%lu TEC=%lu REC=%lu PCLK1=%lu SYSCLK=%lu\r\n",
                       (unsigned)hcan1.State,
-                      (unsigned long)hcan1.Instance->MSR,
-                      (unsigned long)hcan1.Instance->MCR,
-                      (unsigned long)hcan1.Instance->BTR);
+                      (unsigned long)((hcan1.Instance->ESR >> 4U) & 0x7U),
+                      (unsigned long)((hcan1.Instance->ESR >> 24U) & 0xFFU),
+                      (unsigned long)((hcan1.Instance->ESR >> 16U) & 0xFFU),
+                      (unsigned long)HAL_RCC_GetPCLK1Freq(),
+                      (unsigned long)SystemCoreClock);
         }
 
         CanSendSensorData(temp);

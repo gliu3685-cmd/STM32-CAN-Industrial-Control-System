@@ -24,7 +24,7 @@ void MX_CAN1_Init(void)
   hcan1.Init.TimeSeg1 = CAN_BS1_15TQ;
   hcan1.Init.TimeSeg2 = CAN_BS2_2TQ;
   hcan1.Init.TimeTriggeredMode = DISABLE;
-  hcan1.Init.AutoBusOff = DISABLE;
+  hcan1.Init.AutoBusOff = ENABLE;
   hcan1.Init.AutoWakeUp = DISABLE;
   hcan1.Init.AutoRetransmission = DISABLE;
   hcan1.Init.ReceiveFifoLocked = DISABLE;
@@ -52,12 +52,19 @@ void HAL_CAN_MspInit(CAN_HandleTypeDef* canHandle)
     PA11     ------> CAN1_RX
     PA12     ------> CAN1_TX
     */
-    /* F103：CAN1 默认映射在 PB8/PB9，PA11/PA12 需开启 AFIO 重映射 REMAP1 */
-    __HAL_AFIO_REMAP_CAN1_1();
+    /* F103 CAN1 默认映射就是 PA11/PA12，无需重映射
+       （切勿调用 __HAL_AFIO_REMAP_CAN1_1()，那会把 CAN 挪到 PB8/PB9） */
 
-    GPIO_InitStruct.Pin = GPIO_PIN_11 | GPIO_PIN_12;
-    GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
-    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
+    /* PA11=CAN1_RX：F103 的 CAN_RX 必须配成输入模式（CubeMX 标准写法），
+       配成 AF_PP（复用推挽输出）会导致 CAN 内核收不到 RXD 电平、退不出初始化 */
+    GPIO_InitStruct.Pin = GPIO_PIN_11;
+    GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+    GPIO_InitStruct.Pull = GPIO_PULLUP;
+    HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+    /* PA12=CAN1_TX：推挽输出，无需上下拉 */
+    GPIO_InitStruct.Pin = GPIO_PIN_12;
+    GPIO_InitStruct.Pull = GPIO_NOPULL;
     HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
     /* CAN1 interrupt Init（F1 的 RX0 中断与 USB 低优先级共享向量） */
