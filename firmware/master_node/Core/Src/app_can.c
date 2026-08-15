@@ -34,21 +34,23 @@ void CanStart(void)
 {
     CAN_FilterTypeDef filter = {0};
 
-    /* 过滤器 Bank0：掩码模式，全接收 */
-    filter.FilterIdHigh         = 0x0000U;
+    /* 过滤器 Bank0：掩码模式，精确接收 0x102（Node1 传感器数据） */
+    filter.FilterIdHigh         = (uint16_t)(0x102U << 5);
     filter.FilterIdLow          = 0x0000U;
-    filter.FilterMaskIdHigh     = 0x0000U;
+    filter.FilterMaskIdHigh     = (uint16_t)(0x7FFU << 5);
     filter.FilterMaskIdLow      = 0x0000U;
     filter.FilterFIFOAssignment = CAN_RX_FIFO0;
     filter.FilterBank           = 0U;
     filter.FilterMode           = CAN_FILTERMODE_IDMASK;
     filter.FilterScale          = CAN_FILTERSCALE_32BIT;
     filter.FilterActivation     = CAN_FILTER_ENABLE;
+    HAL_CAN_ConfigFilter(&hcan1, &filter);
 
-    if (HAL_CAN_ConfigFilter(&hcan1, &filter) != HAL_OK)
-    {
-        ArchPrint("[CAN] filter config failed!\r\n");
-    }
+    /* 过滤器 Bank1：精确接收 0x202（Node2 电机状态） */
+    filter.FilterIdHigh         = (uint16_t)(0x202U << 5);
+    filter.FilterBank           = 1U;
+    HAL_CAN_ConfigFilter(&hcan1, &filter);
+
     if (HAL_CAN_Start(&hcan1) != HAL_OK)
     {
         ArchPrint("[CAN] start failed!\r\n");
@@ -62,7 +64,7 @@ void CanStart(void)
         ArchPrint("[CAN] RX notification failed!\r\n");
     }
 
-    ArchPrint("[CAN] started, 500kbps, filter=all, waiting frames...\r\n");
+    ArchPrint("[CAN] started, 500kbps, filter=0x102/0x202, waiting frames...\r\n");
 }
 
 /**
@@ -170,9 +172,11 @@ void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan)
         return;
     }
 
-    frame.node_id = rx.StdId;
-    frame.dlc     = rx.DLC;
-    frame.tick    = (uint32_t)xTaskGetTickCountFromISR();
+    frame.dlc  = rx.DLC;
+    frame.tick = (uint32_t)xTaskGetTickCountFromISR();
+
+    /* 应用层协议映射：数据帧 ID → 节点号（0=Node1 传感器，1=Node2 电机） */
+    frame.node_id = (rx.StdId == 0x202U) ? 1U : 0U;
 
     ArchPostCanFrame(&frame);
 }

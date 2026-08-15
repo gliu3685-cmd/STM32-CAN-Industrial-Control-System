@@ -37,7 +37,7 @@ extern osMutexId uartMutexHandle;
 
 /* 系统参数 */
 #define ARCH_NODE_NUM       (2U)       /* 两个 F103 从节点 */
-#define ARCH_RX_TIMEOUT_MS  (1500U)    /* 超过 1.5s 未收到帧判为离线 */
+#define ARCH_RX_TIMEOUT_MS  (5000U)    /* 超过 5s 未收到帧判为离线（协议约定） */
 #define ARCH_TEMP_LIMIT     (80)       /* 节点 0 温度告警阈值（℃） */
 #define ARCH_NODE0_DROP_CNT (25U)      /* 演示：25 帧后模拟节点 0 掉线 */
 #define ARCH_USE_SIM_NODE   (0)        /* Day15：0=真实CAN驱动，1=启用模拟数据源 */
@@ -299,6 +299,10 @@ static void FaultMonitorTask(void *pv)
         {
             if ((now - gSys.last_rx_tick[i]) > ARCH_RX_TIMEOUT_MS)
             {
+                if (gSys.node_online[i] == 1U)
+                {
+                    ArchPrint("[FAULT] node%u offline detected!\r\n", (unsigned)i);
+                }
                 gSys.node_online[i] = 0;
                 offline = 1;
             }
@@ -310,10 +314,6 @@ static void FaultMonitorTask(void *pv)
         }
         xSemaphoreGive(xSysMutex);
 
-        if (offline)
-        {
-            ArchPrint("[FAULT] node offline detected!\r\n");
-        }
     }
 }
 
