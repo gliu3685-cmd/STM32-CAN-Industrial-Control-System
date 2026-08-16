@@ -39,6 +39,9 @@ extern osMutexId uartMutexHandle;
 
 static QueueHandle_t xCanRxQueue;
 
+/* 当前上报温度（发送任务维护，接收任务读取用于命令响应） */
+static uint8_t g_temp = 30;
+
 /**
   * @brief  加锁打印（UART 互斥锁保护，防止多任务输出交错）
   */
@@ -216,6 +219,13 @@ void CanRxTask(void const *pv)
                       (unsigned long)frame.id, (unsigned)frame.dlc,
                       (unsigned)frame.data[0], (unsigned)frame.data[1],
                       (unsigned)frame.data[2], (unsigned)frame.data[3]);
+
+            /* Day21：收到"请求上报"命令（0x01），立即回应一帧温度数据 */
+            if ((frame.id == CAN_CMD_ID) && (frame.data[0] == 0x01U))
+            {
+                NodePrint("[NODE1] CMD req-report -> respond\r\n");
+                CanSendSensorData(g_temp);
+            }
         }
     }
 }
@@ -225,7 +235,6 @@ void CanRxTask(void const *pv)
   */
 void CanTxTask(void const *pv)
 {
-    uint8_t temp = 30;
     uint32_t cnt = 0;
 
     (void)pv;
@@ -246,13 +255,13 @@ void CanTxTask(void const *pv)
                       (unsigned long)SystemCoreClock);
         }
 
-        CanSendSensorData(temp);
-        NodePrint("[NODE1] TX 0x102 temp=%u\r\n", (unsigned)temp);
+        CanSendSensorData(g_temp);
+        NodePrint("[NODE1] TX 0x102 temp=%u\r\n", (unsigned)g_temp);
 
-        temp++;
-        if (temp > 60)
+        g_temp++;
+        if (g_temp > 60)
         {
-            temp = 30;
+            g_temp = 30;
         }
 
         cnt++;

@@ -208,8 +208,8 @@ static void CanRxTask(void *pv)
                 }
                 else
                 {
-                    gSys.adc   = (uint16_t)(frame.data[0] | (frame.data[1] << 8));
-                    gSys.speed = (uint16_t)(frame.data[2] | (frame.data[3] << 8));
+                    /* Day21：协议核对——0x202 DLC=2，data[0..1]=speed 小端 */
+                    gSys.speed = (uint16_t)(frame.data[0] | (frame.data[1] << 8));
                 }
             }
             xSemaphoreGive(xSysMutex);
@@ -312,6 +312,11 @@ static void FaultMonitorTask(void *pv)
             gSys.fault_offline = 1;
             xEventGroupSetBits(xSysEvents, EVT_OFFLINE);
         }
+        else
+        {
+            /* Day21：全部节点恢复在线后清除离线标志（避免锁存误导） */
+            gSys.fault_offline = 0;
+        }
         xSemaphoreGive(xSysMutex);
 
     }
@@ -332,6 +337,13 @@ static void CanTxTask(void *pv)
     {
         /* Day15：真实 CAN 发送，USB-CAN 分析仪可在电脑端观测 */
         CanSendHeartbeat(seq++);
+
+        /* Day21：每 5s 交替向 Node1/Node2 发送应用层命令帧 */
+        if ((seq % 5U) == 0U)
+        {
+            CanSendCommand((uint8_t)((seq / 5U) % 2U));
+        }
+
         vTaskDelay(pdMS_TO_TICKS(1000));
     }
 }

@@ -39,6 +39,10 @@ extern osMutexId uartMutexHandle;
 
 static QueueHandle_t xCanRxQueue;
 
+/* 当前上报速度与命令覆盖截止 tick（发送/接收任务共同维护） */
+static uint16_t g_speed = 0;
+static uint32_t g_override_until = 0;
+
 /**
   * @brief  加锁打印（UART 互斥锁保护，防止多任务输出交错）
   */
@@ -211,6 +215,15 @@ void CanRxTask(void const *pv)
                       (unsigned long)frame.id, (unsigned)frame.dlc,
                       (unsigned)frame.data[0], (unsigned)frame.data[1],
                       (unsigned)frame.data[2], (unsigned)frame.data[3]);
+
+            /* Day21：收到"设置速度"命令（0x01），更新速度并保持 5s */
+            if ((frame.id == CAN_CMD_ID) && (frame.data[0] == 0x01U))
+            {
+                g_speed = (uint16_t)(frame.data[1] | ((uint16_t)frame.data[2] << 8));
+                g_override_until = xTaskGetTickCount() + pdMS_TO_TICKS(5000);
+                NodePrint("[NODE2] CMD set-speed=%u -> respond\r\n", (unsigned)g_speed);
+                CanSendMotorData(g_speed);
+            }
         }
     }
 }
@@ -220,7 +233,6 @@ void CanRxTask(void const *pv)
   */
 void CanTxTask(void const *pv)
 {
-    uint16_t speed = 0;
     uint32_t cnt = 0;
 
     (void)pv;
@@ -229,8 +241,18 @@ void CanTxTask(void const *pv)
 
     for (;;)
     {
-        CanSendMotorData(speed);
-        NodePrint("[NODE2] TX 0x202 speed=%u\r\n", (unsigned)speed);
+        /* Day21：命令速度保持 5s，超时后恢复自动递增演示 */
+        if (xTaskGetTickCount() >= g_override_until)
+        {
+            g_speed += 100;
+            if (g_speed > 1000)
+            {
+                g_speed = 0;
+            }
+        }
+
+        CanSendMotorData(g_speed);
+        NodePrint("[NODE2] TX 0x202 speed=%u\r\n", (unsigned)g_speed);
 
         if ((cnt % 5U) == 0U)
         {
@@ -242,12 +264,6 @@ void CanTxTask(void const *pv)
                       (unsigned long)((esr >> 16U) & 0xFFU),
                       (unsigned long)HAL_RCC_GetPCLK1Freq(),
                       (unsigned long)SystemCoreClock);
-        }
-
-        speed += 100;
-        if (speed > 1000)
-        {
-            speed = 0;
         }
 
         cnt++;

@@ -24,4 +24,11 @@ void CanStart(void);
   */
 void CanSendHeartbeat(uint32_t seq);
 
+/**
+  * @brief  发送应用层命令帧（0=Node1 请求上报，1=Node2 设置速度）
+  * @param  node: 目标节点号（0/1）
+  * @retval 无
+  */
+void CanSendCommand(uint8_t node);
+
 #endif /* APP_CAN_H */

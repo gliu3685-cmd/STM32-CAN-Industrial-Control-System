@@ -96,16 +96,14 @@ FreeRTOS Scheduler
 - ✅ Event Group 事件组（AND/OR 多条件等待）+ 任务通知
 - ✅ 异常检测调试（栈溢出/HardFault/configASSERT）+ 综合架构设计（Phase 2 收官）
 
-### Phase 3：CAN 通信系统 🔄 进行中
+### Phase 3：CAN 通信系统 ✅ 已完成
 
 - ✅ F407 CAN1 500 kbps 收发（PCAN-View 双向验证）
 - ✅ F103 节点 CAN 打通（修复 GPIO 复用配置，Node1/Node2 收发成功）
 - ✅ 排障沉淀：双端 120Ω 终端电阻、先单机环回再组网、F1/F4 GPIO 差异
-
-- CAN 初始化、报文收发、中断处理
-- 自定义 CAN 应用层协议（帧 ID 分配）
-- 心跳检测与节点离线识别
-- 故障管理（超时检测、自动重连、总线错误计数）
+- ✅ 心跳协议文档化 + 故障注入测试（拔线/断电/主控离线，ACK 错误定位）
+- ✅ 请求/应答命令帧闭环（0x101 请求上报、0x201 设置速度）
+- ✅ 30 分钟压力测试（错误计数 0、无误报、无丢帧）
 
 ### Phase 4：电机控制闭环 ⏳ 规划中
 
@@ -180,6 +178,7 @@ STM32-CAN-Industrial-Control-System
 - [Day 18：三节点联调（协议映射 + 双 Bank 过滤 + 心跳离线检测）](docs/day18.md)
 - [Day 19：心跳协议文档化 + 故障注入测试](docs/day19.md)
 - [Day 20：CAN 理论收尾（帧格式/位同步/仲裁/过滤器）](docs/day20.md)
+- [Day 21：请求/应答命令帧 + 压力测试（Phase 3 收官）](docs/day21.md)
 
 ---
 
