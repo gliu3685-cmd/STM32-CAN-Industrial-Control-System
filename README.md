@@ -182,6 +182,7 @@ STM32-CAN-Industrial-Control-System
 - [Day 20：CAN 理论收尾（帧格式/位同步/仲裁/过滤器）](docs/day20.md)
 - [Day 21：请求/应答命令帧 + 压力测试（Phase 3 收官）](docs/day21.md)
 - [Phase 3 复盘（Day 15-21）](docs/phase3-review.md)
+- [CAN 代码与原理详解（面试速查）](docs/can-walkthrough.md)
 
 ---
 
