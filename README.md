@@ -2,7 +2,7 @@
 
 基于 STM32 + FreeRTOS + CAN 总线的三节点工业控制系统原型，模拟工业现场"传感器采集 → 主控决策 → 执行器响应"的分布式控制链路。
 
-系统以 STM32F407 为主控节点，两个 STM32F103 分别作为传感节点和执行节点，覆盖实时任务调度、CAN 总线通信、电机 PID 闭环控制、故障监测等工业嵌入式核心环节，并配套 STM32 IAP 固件升级系统。
+系统以 STM32F407 为主控节点，两个 STM32F103 分别作为传感节点和执行节点，覆盖实时任务调度、CAN 总线通信、故障监测等工业嵌入式核心环节；电机 PID 闭环控制（Phase 4）与 STM32 IAP 固件升级（可选加分项）为后续规划。
 
 ---
 
@@ -16,13 +16,15 @@
             ┌────────────┴────────────┐
             │                         │
     STM32F103 Sensor Node    STM32F103 Motor Node
-    （MPU6050 数据采集）      （PWM + 编码器 + PID）
+    （温度上报，1s）          （速度上报，1s）
+    （MPU6050 规划中）        （PWM+PID 规划中）
 ```
 
 **功能链路**：
 
 ```
 传感器采集 → CAN 通信 → 主控决策 → CAN 指令 → 电机执行 → 编码器反馈 → PID 闭环
+（传感器/电机/PID 为 Phase 4 规划，当前传感器与电机数据为节点模拟上报）
 ```
 
 **节点职责**：
@@ -30,8 +32,8 @@
 | 节点 | 硬件 | 职责 |
 |---|---|---|
 | Master | STM32F407VET6 | 任务调度、CAN 通信管理、数据处理、故障监控 |
-| Sensor Node | STM32F103C8T6 | MPU6050 数据采集、CAN 上报 |
-| Motor Node | STM32F103C8T6 | PWM 电机驱动、编码器反馈、PID 速度闭环 |
+| Sensor Node | STM32F103C8T6 | 温度数据采集上报（模拟）、CAN 上报（MPU6050 规划中） |
+| Motor Node | STM32F103C8T6 | 速度状态上报（模拟）、接收速度命令（PWM/PID 规划中） |
 
 ---
 
@@ -52,14 +54,14 @@ FreeRTOS Task Layer（任务调度）
 ```
 FreeRTOS Scheduler
       │
-      ├── CAN Receive Task    — 接收 CAN 报文，按 ID 分发
-      ├── CAN Transmit Task   — 发送控制指令
-      ├── Control Logic Task  — 传感器融合 + 决策
+      ├── CAN Receive Task    — 接收 CAN 报文，更新节点状态表
+      ├── CAN Transmit Task   — 发送心跳帧与应用命令帧
+      ├── Control Logic Task  — 温度越限检测 + 速度指令计算
       ├── Fault Monitor Task  — 心跳检测 + 离线告警
       └── UART Debug Task     — 状态输出
 ```
 
-任务间通过 **Queue** 传递数据，中断通过 **Semaphore** 通知任务（中断不处理业务），共享资源（如 UART）通过 **Mutex** 保护。
+任务间通过 **Queue** 传递数据，中断通过 **Queue/EventGroup 的 FromISR 安全接口**通知任务（中断不处理业务），共享资源（如 UART）通过 **Mutex** 保护。
 
 ---
 
@@ -70,8 +72,8 @@ FreeRTOS Scheduler
 | MCU | STM32F407VET6、STM32F103C8T6 |
 | RTOS | FreeRTOS（CMSIS_V1） |
 | 通信 | CAN 总线（500 kbps），自定义应用层协议 |
-| 控制 | PWM 输出、编码器反馈、PID 速度闭环 |
-| 传感器 | MPU6050 六轴姿态（I2C） |
+| 控制 | PWM 输出、编码器反馈、PID 速度闭环（Phase 4 规划） |
+| 传感器 | 温度采集（模拟）；MPU6050 六轴姿态（Phase 4 规划） |
 | 工具 | STM32CubeMX、STM32CubeIDE、ST-Link V2、Git |
 
 ---
@@ -128,13 +130,13 @@ FreeRTOS Scheduler
 
 三节点总线采用 11 位标准帧，固定 ID 分配（详见 [Day19 记录](docs/day19.md)）：
 
-| 帧 ID | 方向 | 内容 |
-|---|---|---|
-| 0x100 | F407 主控 → 总线 | 心跳帧（seq + 状态字 0x55AA，1s） |
-| 0x101 | 主控 → Node1 | 命令帧（预留） |
-| 0x102 | Node1 → 主控 | 温度数据（1s） |
-| 0x201 | 主控 → Node2 | 命令帧（预留） |
-| 0x202 | Node2 → 主控 | 速度数据（1s） |
+| 帧 ID | 方向 | DLC | 内容 |
+|---|---|---|---|
+| 0x100 | F407 主控 → 总线 | 8 | 心跳帧：seq(2B 小端) + 0x55AA(2B) + 预留(4B)，1s |
+| 0x101 | 主控 → Node1 | 1 | 命令帧：data[0]=0x01 请求上报温度 |
+| 0x102 | Node1 → 主控 | 2 | 温度数据：temp(2B 小端)，1s |
+| 0x201 | 主控 → Node2 | 3 | 命令帧：data[0]=0x01 设置速度，data[1..2]=目标速度(2B 小端) |
+| 0x202 | Node2 → 主控 | 2 | 速度数据：speed(2B 小端)，1s |
 
 ---
 
@@ -179,6 +181,7 @@ STM32-CAN-Industrial-Control-System
 - [Day 19：心跳协议文档化 + 故障注入测试](docs/day19.md)
 - [Day 20：CAN 理论收尾（帧格式/位同步/仲裁/过滤器）](docs/day20.md)
 - [Day 21：请求/应答命令帧 + 压力测试（Phase 3 收官）](docs/day21.md)
+- [Phase 3 复盘（Day 15-21）](docs/phase3-review.md)
 
 ---
 
@@ -219,10 +222,13 @@ STM32-CAN-Industrial-Control-System
 
 ### 8.3 排障沉淀的关键工程要点
 
-- **CAN 总线两端各接一个 120Ω 终端电阻**（防信号反射 + 拉回隐性电平）
+- **CAN 总线两端各接一个 120Ω 终端电阻**（防信号反射 + 拉回隐性电平；短距离低速率下分析仪自带单终端可工作）
 - **先单机环回（Loopback）验证外设，再上总线组网**——隔离"外设问题"和"总线问题"
 - **F103 的 CAN_RX 必须配 `GPIO_MODE_INPUT`**（F1 无 AF 选择寄存器，照抄 F4 的 `AF_PP` 会导致初始化卡死）
 - **ISR 中禁止 printf**（会与任务打印抢占 UART），错误详情由任务周期读取 ESR 打印
+- **协议解析必须与协议文档逐帧核对**（0x202 曾按旧 4 字节格式解析导致 speed=0）
+- **离线告警标志应在节点恢复后自动清除**，避免历史锁存误导
+- **命令帧 = 命令码 + 参数 + 应答**，从节点执行后回报形成闭环（电机控制直接复用 0x201/0x202）
 - **PID 调参用波形工具**（SerialPlot / VOFA+），编码器读取周期 ≤ PID 周期
 
 ---
