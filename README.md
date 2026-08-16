@@ -179,6 +179,7 @@ STM32-CAN-Industrial-Control-System
 - [Day 17：F103 CAN 排障与节点打通（PA11 输入模式修复）](docs/day17.md)
 - [Day 18：三节点联调（协议映射 + 双 Bank 过滤 + 心跳离线检测）](docs/day18.md)
 - [Day 19：心跳协议文档化 + 故障注入测试](docs/day19.md)
+- [Day 20：CAN 理论收尾（帧格式/位同步/仲裁/过滤器）](docs/day20.md)
 
 ---
 
