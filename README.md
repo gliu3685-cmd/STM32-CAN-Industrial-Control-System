@@ -126,15 +126,17 @@ FreeRTOS Scheduler
 
 ---
 
-## 5. 自定义 CAN 协议（规划）
+## 5. 自定义 CAN 协议
 
-```c
-#define ID_CMD_NODE1     0x101   // Master → Node1 命令
-#define ID_CMD_NODE2     0x201   // Master → Node2 命令
-#define ID_DATA_NODE1    0x102   // Node1 → Master 传感器数据
-#define ID_DATA_NODE2    0x202   // Node2 → Master 电机状态
-#define ID_HEARTBEAT     0x301   // 心跳帧（1s 周期，5s 无心跳判离线）
-```
+三节点总线采用 11 位标准帧，固定 ID 分配（详见 [Day19 记录](docs/day19.md)）：
+
+| 帧 ID | 方向 | 内容 |
+|---|---|---|
+| 0x100 | F407 主控 → 总线 | 心跳帧（seq + 状态字 0x55AA，1s） |
+| 0x101 | 主控 → Node1 | 命令帧（预留） |
+| 0x102 | Node1 → 主控 | 温度数据（1s） |
+| 0x201 | 主控 → Node2 | 命令帧（预留） |
+| 0x202 | Node2 → 主控 | 速度数据（1s） |
 
 ---
 
@@ -175,6 +177,8 @@ STM32-CAN-Industrial-Control-System
 - [Day 15：CAN 通信（F407 CAN1 500k + PCAN-View 验证）](docs/day15.md)
 - [Day 16：F103 节点工程搭建](docs/day16.md)
 - [Day 17：F103 CAN 排障与节点打通（PA11 输入模式修复）](docs/day17.md)
+- [Day 18：三节点联调（协议映射 + 双 Bank 过滤 + 心跳离线检测）](docs/day18.md)
+- [Day 19：心跳协议文档化 + 故障注入测试](docs/day19.md)
 
 ---
 
