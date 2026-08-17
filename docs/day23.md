@@ -115,6 +115,15 @@ MotorSetDuty(300U);   /* 30% 测试占空比 */
 NodePrint("[NODE2] ENC cnt=%ld delta=%ld\r\n", enc, enc - last_enc);
 ```
 
+### 4.4 等待电源期间：Node1 MPU6050 软件 I2C 驱动（app_mpu6050.c）
+
+利用等电源时间完成 Node1 传感器接入：
+
+* 软件 I2C（PB6=SCL、PB7=SDA，开漏输出 + 模块上拉），避开 F1 硬件 I2C 兼容性问题
+* 寄存器配置：唤醒（PWR_MGMT_1=0）、采样率 125Hz、±2g、±250°/s，WHO_AM_I=0x68 校验
+* 0x3B 起突发读 14 字节：加速度(6) + 温度(2) + 陀螺仪(6)
+* 每秒读取并串口打印；新增 **0x103 帧**上报加速度计（DLC=6，ax/ay/az 小端），主控过滤器暂不接收，PCAN-View 可观测
+
 ---
 
 ## 5. 实验过程（Experiment）
@@ -134,6 +143,16 @@ NodePrint("[NODE2] ENC cnt=%ld delta=%ld\r\n", enc, enc - last_enc);
 * `[NODE2] ENC cnt=... delta=...` 每秒递增（正转）
 
 状态：✅ 固件就绪，⏳ 等待电源。
+
+### 实验 3：MPU6050 串口/CAN 验证（待烧录）
+
+预期现象（烧录 Node1 后）：
+
+* 串口打印 `[NODE1] MPU6050 init ok`
+* 每秒 `[NODE1] MPU ax=... ay=... az=... gx=... gy=... gz=...`，静止时加速度 z≈16384（±2g 满量程）
+* PCAN-View 每秒出现 0x103 帧（DLC=6）
+
+状态：✅ 代码就绪、CLI 编译通过（0 错误），待烧录验证。
 
 ---
 
@@ -167,6 +186,7 @@ NodePrint("[NODE2] ENC cnt=%ld delta=%ld\r\n", enc, enc - last_enc);
 * [x] HAL TIM 驱动补齐与模块开关
 * [x] CLI 编译通过（0 错误 0 警告）
 * [x] 测试占空比 30% + 编码器计数打印（待电源上电验证）
+* [x] Node1 MPU6050 软件 I2C 驱动 + 0x103 加速度帧（CLI 编译通过）
 
 ---
 

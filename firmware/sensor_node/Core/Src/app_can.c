@@ -12,6 +12,7 @@
   */
 
 #include "app_can.h"
+#include "app_mpu6050.h"
 #include "can.h"
 #include "FreeRTOS.h"
 #include "task.h"
@@ -241,6 +242,16 @@ void CanTxTask(void const *pv)
 
     CanStart();
 
+    /* Day23：MPU6050 初始化（软件 I2C，PB6=SCL / PB7=SDA） */
+    if (MPU_Init())
+    {
+        NodePrint("[NODE1] MPU6050 init ok\r\n");
+    }
+    else
+    {
+        NodePrint("[NODE1] MPU6050 init FAIL\r\n");
+    }
+
     for (;;)
     {
         /* 每 5 秒打印一次 CAN 状态快照（便于串口抓取诊断信息） */
@@ -257,6 +268,31 @@ void CanTxTask(void const *pv)
 
         CanSendSensorData(g_temp);
         NodePrint("[NODE1] TX 0x102 temp=%u\r\n", (unsigned)g_temp);
+
+        /* Day23：读取 MPU6050 并串口打印 + 0x103 帧上报加速度计（ax/ay/az 小端） */
+        {
+            MPU6050_t mpu;
+            CAN_TxHeaderTypeDef tx = {0};
+            uint8_t d[8] = {0};
+            uint32_t mailbox = 0;
+
+            MPU_ReadAll(&mpu);
+            NodePrint("[NODE1] MPU ax=%d ay=%d az=%d gx=%d gy=%d gz=%d\r\n",
+                      (int)mpu.ax, (int)mpu.ay, (int)mpu.az,
+                      (int)mpu.gx, (int)mpu.gy, (int)mpu.gz);
+
+            tx.StdId = 0x103U;
+            tx.DLC   = 6U;
+            tx.IDE   = CAN_ID_STD;
+            tx.RTR   = CAN_RTR_DATA;
+            d[0] = (uint8_t)(mpu.ax & 0xFFU);
+            d[1] = (uint8_t)((mpu.ax >> 8) & 0xFFU);
+            d[2] = (uint8_t)(mpu.ay & 0xFFU);
+            d[3] = (uint8_t)((mpu.ay >> 8) & 0xFFU);
+            d[4] = (uint8_t)(mpu.az & 0xFFU);
+            d[5] = (uint8_t)((mpu.az >> 8) & 0xFFU);
+            HAL_CAN_AddTxMessage(&hcan1, &tx, d, &mailbox);
+        }
 
         g_temp++;
         if (g_temp > 60)
