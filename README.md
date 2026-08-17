@@ -184,6 +184,7 @@ STM32-CAN-Industrial-Control-System
 - [Phase 3 复盘（Day 15-21）](docs/phase3-review.md)
 - [CAN 代码与原理详解（面试速查）](docs/can-walkthrough.md)
 - [Day 22：电机 PID 预热（理论 + 硬件接线）](docs/day22.md)
+- [Day 23：Node2 TIM2 PWM + TIM3 编码器驱动](docs/day23.md)
 
 ---
 

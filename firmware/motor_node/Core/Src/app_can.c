@@ -12,6 +12,7 @@
   */
 
 #include "app_can.h"
+#include "app_motor.h"
 #include "can.h"
 #include "FreeRTOS.h"
 #include "task.h"
@@ -234,10 +235,16 @@ void CanRxTask(void const *pv)
 void CanTxTask(void const *pv)
 {
     uint32_t cnt = 0;
+    int32_t  last_enc = 0;
 
     (void)pv;
 
     CanStart();
+
+    /* Day23：电机驱动初始化 + 测试占空比 30%（电源到位后电机转动） */
+    MotorInit();
+    MotorSetDir(1U);
+    MotorSetDuty(300U);
 
     for (;;)
     {
@@ -253,6 +260,14 @@ void CanTxTask(void const *pv)
 
         CanSendMotorData(g_speed);
         NodePrint("[NODE2] TX 0x202 speed=%u\r\n", (unsigned)g_speed);
+
+        /* Day23：每秒打印一次编码器计数与增量（验证测速） */
+        {
+            int32_t enc = MotorGetCount();
+            NodePrint("[NODE2] ENC cnt=%ld delta=%ld\r\n",
+                      (long)enc, (long)(enc - last_enc));
+            last_enc = enc;
+        }
 
         if ((cnt % 5U) == 0U)
         {
