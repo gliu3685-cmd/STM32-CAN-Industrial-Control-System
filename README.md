@@ -183,6 +183,7 @@ STM32-CAN-Industrial-Control-System
 - [Day 21：请求/应答命令帧 + 压力测试（Phase 3 收官）](docs/day21.md)
 - [Phase 3 复盘（Day 15-21）](docs/phase3-review.md)
 - [CAN 代码与原理详解（面试速查）](docs/can-walkthrough.md)
+- [Day 22：电机 PID 预热（理论 + 硬件接线）](docs/day22.md)
 
 ---
 
