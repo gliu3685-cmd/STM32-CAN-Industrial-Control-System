@@ -15,7 +15,7 @@
 ```
 
 - 仓库：`STM32-CAN-Industrial-Control-System`
-- 本地副本：`C:\Users\zwq66\Documents\GitHub\STM32-CAN-Industrial-Control-System`
+- 本地副本：`C:\Users\zwq66\Documents\柳\STM32-CAN-Industrial-Control-System`（唯一工作副本）
 - 远程：`https://github.com/gliu3685-cmd/STM32-CAN-Industrial-Control-System`
 - 当前阶段：**Phase 4 电机控制闭环**（Day 24 代码完成，等待 12V 电源线验证）
 
