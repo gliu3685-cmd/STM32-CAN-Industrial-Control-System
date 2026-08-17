@@ -40,9 +40,8 @@ extern osMutexId uartMutexHandle;
 
 static QueueHandle_t xCanRxQueue;
 
-/* 当前上报速度与命令覆盖截止 tick（发送/接收任务共同维护） */
+/* 当前命令速度（0~1000，对应占空比 0~100%） */
 static uint16_t g_speed = 0;
-static uint32_t g_override_until = 0;
 
 /**
   * @brief  加锁打印（UART 互斥锁保护，防止多任务输出交错）
@@ -217,57 +216,54 @@ void CanRxTask(void const *pv)
                       (unsigned)frame.data[0], (unsigned)frame.data[1],
                       (unsigned)frame.data[2], (unsigned)frame.data[3]);
 
-            /* Day21：收到"设置速度"命令（0x01），更新速度并保持 5s */
+            /* Day24：收到"设置速度"命令（0x01），真正驱动电机 */
             if ((frame.id == CAN_CMD_ID) && (frame.data[0] == 0x01U))
             {
                 g_speed = (uint16_t)(frame.data[1] | ((uint16_t)frame.data[2] << 8));
-                g_override_until = xTaskGetTickCount() + pdMS_TO_TICKS(5000);
-                NodePrint("[NODE2] CMD set-speed=%u -> respond\r\n", (unsigned)g_speed);
-                CanSendMotorData(g_speed);
+                MotorSetDuty(g_speed);          /* 0~1000 = 0~100% 占空比 */
+                MotorSetDir(1U);                /* 固定正向 */
+                NodePrint("[NODE2] CMD set-speed=%u -> duty\r\n", (unsigned)g_speed);
+                CanSendMotorData(g_speed);      /* 应答回传设定值 */
             }
         }
     }
 }
 
 /**
-  * @brief  CAN 发送任务：启动 CAN 后每 1s 发送一次模拟速度（0~1000 递增）
+  * @brief  CAN 发送任务：每 1s 上报真实编码器速度（0x202）
   */
 void CanTxTask(void const *pv)
 {
     uint32_t cnt = 0;
     int32_t  last_enc = 0;
+    int32_t  enc, delta;
 
     (void)pv;
 
     CanStart();
 
-    /* Day23：电机驱动初始化 + 测试占空比 30%（电源到位后电机转动） */
+    /* Day23：电机驱动初始化；Day24 起默认停转，由 0x201 命令驱动 */
     MotorInit();
     MotorSetDir(1U);
-    MotorSetDuty(300U);
+    MotorSetDuty(0U);
 
     for (;;)
     {
-        /* Day21：命令速度保持 5s，超时后恢复自动递增演示 */
-        if (xTaskGetTickCount() >= g_override_until)
+        /* Day24：0x202 上报真实编码器速度（每秒计数值，绝对值） */
+        enc   = MotorGetCount();
+        delta = enc - last_enc;
+        last_enc = enc;
+        if (delta < 0)
         {
-            g_speed += 100;
-            if (g_speed > 1000)
-            {
-                g_speed = 0;
-            }
+            delta = -delta;
         }
-
-        CanSendMotorData(g_speed);
-        NodePrint("[NODE2] TX 0x202 speed=%u\r\n", (unsigned)g_speed);
-
-        /* Day23：每秒打印一次编码器计数与增量（验证测速） */
+        if (delta > 0xFFFF)
         {
-            int32_t enc = MotorGetCount();
-            NodePrint("[NODE2] ENC cnt=%ld delta=%ld\r\n",
-                      (long)enc, (long)(enc - last_enc));
-            last_enc = enc;
+            delta = 0xFFFF;
         }
+        CanSendMotorData((uint16_t)delta);
+        NodePrint("[NODE2] TX 0x202 speed=%u cnt=%ld\r\n",
+                  (unsigned)delta, (long)enc);
 
         if ((cnt % 5U) == 0U)
         {
