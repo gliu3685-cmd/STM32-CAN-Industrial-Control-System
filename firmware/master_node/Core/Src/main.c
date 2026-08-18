@@ -61,6 +61,7 @@ int main(void)
 {
 
   /* USER CODE BEGIN 1 */
+  SCB->VTOR = 0x08010000U;              /* IAP：向量表偏移到 APP 区 */
 
   /* USER CODE END 1 */
 
@@ -86,7 +87,7 @@ int main(void)
   MX_TIM3_Init();
   MX_CAN1_Init();
   /* USER CODE BEGIN 2 */
-  printf("F407 Master Start!\r\n");
+  printf("F407 App v1.0 Start!\r\n");
   HAL_TIM_Base_Start_IT(&htim3);
   /* USER CODE END 2 */
 
