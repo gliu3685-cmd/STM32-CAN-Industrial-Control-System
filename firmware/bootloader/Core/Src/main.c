@@ -11,6 +11,7 @@
 #include "main.h"
 #include "usart.h"
 #include "bl_uart.h"
+#include "bl_protocol.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
@@ -51,7 +52,7 @@ int main(void)
   if (got && ch == 'u')
   {
     printf("UPGRADE MODE\r\n");
-    while (1) { HAL_Delay(1000); }   /* Task 6 接入协议循环 */
+    BlProtocolRun();                 /* 不返回 */
   }
   else if (got && ch == 'j')
   {
