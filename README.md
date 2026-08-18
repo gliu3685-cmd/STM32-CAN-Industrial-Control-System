@@ -113,11 +113,13 @@ FreeRTOS Scheduler
 - 编码器反馈采集（TIM 编码器模式）
 - PID 速度闭环控制
 
-### Phase 5：IAP Bootloader ⏳ 规划中
+### Phase 5：IAP Bootloader 🔄 进行中（代码就绪，待上电验证）
 
 - Flash 分区管理与向量表偏移
 - CRC32 校验与固件升级协议
 - Python 上位机升级工具
+
+实施计划见 [docs/bootloader-plan.md](docs/bootloader-plan.md)（F407ZGTx + UART，Day 29-34）。
 
 ### Phase 6：项目整理 ⏳ 规划中
 
