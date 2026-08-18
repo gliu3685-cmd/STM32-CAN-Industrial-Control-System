@@ -17,6 +17,8 @@ Release/
 *.launch
 *.uvguix.*
 *.build_log.htm
+__pycache__/
+*.pyc
 
 # CubeMX backup
 
