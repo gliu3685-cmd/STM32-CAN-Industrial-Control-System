@@ -10,6 +10,7 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include "usart.h"
+#include "bl_uart.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
@@ -37,6 +38,31 @@ int main(void)
 
   /* USER CODE BEGIN 2 */
   printf("BOOT v0.1\r\n");
+
+  /* 1s 握手窗口：u=升级模式，j=强制跳转（调试），超时=默认路径 */
+  uint8_t ch = 0;
+  int got = 0;
+  for (uint32_t i = 0; i < 1000; i++)
+  {
+    if (UART_GetByte(&ch)) { got = 1; break; }
+    HAL_Delay(1);
+  }
+
+  if (got && ch == 'u')
+  {
+    printf("UPGRADE MODE\r\n");
+    while (1) { HAL_Delay(1000); }   /* Task 6 接入协议循环 */
+  }
+  else if (got && ch == 'j')
+  {
+    printf("JUMP\r\n");
+    while (1) { HAL_Delay(1000); }   /* Task 7 接入 BlJumpToApp */
+  }
+  else
+  {
+    printf("NO APP\r\n");            /* Task 7 改为有效检测 + 跳转 */
+    while (1) { HAL_Delay(1000); }
+  }
   /* USER CODE END 2 */
 
   /* Infinite loop */
