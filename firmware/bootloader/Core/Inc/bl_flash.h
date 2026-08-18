@@ -43,4 +43,9 @@ void BlFlashWriteMagic(void);
   */
 int BlAppValid(void);
 
+/**
+  * @brief  跳转到 APP（设置 MSP + 函数指针跳转，跳转前关中断）
+  */
+void BlJumpToApp(void);
+
 #endif /* BL_FLASH_H */

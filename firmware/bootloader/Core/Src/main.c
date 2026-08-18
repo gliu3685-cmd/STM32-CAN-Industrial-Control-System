@@ -12,6 +12,7 @@
 #include "usart.h"
 #include "bl_uart.h"
 #include "bl_protocol.h"
+#include "bl_flash.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
@@ -56,12 +57,15 @@ int main(void)
   }
   else if (got && ch == 'j')
   {
-    printf("JUMP\r\n");
-    while (1) { HAL_Delay(1000); }   /* Task 7 接入 BlJumpToApp */
+    BlJumpToApp();                    /* 强制跳转（调试用，不检查 magic） */
   }
   else
   {
-    printf("NO APP\r\n");            /* Task 7 改为有效检测 + 跳转 */
+    if (BlAppValid())
+    {
+      BlJumpToApp();
+    }
+    printf("NO APP\r\n");
     while (1) { HAL_Delay(1000); }
   }
   /* USER CODE END 2 */

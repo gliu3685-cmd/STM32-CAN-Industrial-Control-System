@@ -92,3 +92,16 @@ int BlAppValid(void)
 
     return (sp >= 0x20000000U && sp < 0x20020000U) && (magic == APP_MAGIC);
 }
+
+/**
+  * @brief  跳转到 APP：设置 MSP 后跳转 Reset_Handler，永不返回
+  */
+void BlJumpToApp(void)
+{
+    uint32_t sp = *(volatile uint32_t *)APP_START;
+    void (*reset)(void) = (void (*)(void))(*(volatile uint32_t *)(APP_START + 4));
+
+    __disable_irq();          /* 跳转前关闭中断，交给 APP 重新初始化 */
+    __set_MSP(sp);
+    reset();
+}
