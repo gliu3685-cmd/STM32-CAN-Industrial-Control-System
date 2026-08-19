@@ -87,6 +87,8 @@
 4. **Day 27**：PID 速度闭环（增量式 + 积分限幅/分离）
 5. **Day 28**：调参 + 三节点联调
 
+> **烧录顺序约束（用户明确要求）**：IAP Bootloader（firmware/bootloader 及其 master 0x08010000 搬迁）**必须等 PID 阶段（Day 22-28）全部完成后再烧录/切换**。PID 期间本地 `f407_blink` 保持 0x08000000 原版（当前已恢复），日常联调烧本地工程；仓库 master 副本维持 IAP 状态不影响。Bootloader 代码已在 main（已 push），到时按 bootloader-plan.md 流程验证。
+
 ## 9. 可选事项（优先级低于电机 PID）
 
 - MPU6050 数据目前只是 0x103 广播，主控过滤器未收，后续可决定是否接入姿态控制
