@@ -237,6 +237,7 @@ void CanTxTask(void const *pv)
     uint32_t cnt = 0;
     int32_t  last_enc = 0;
     int32_t  enc, delta;
+    int32_t  total = 0;   /* Day25：标定用累计计数（重启清零，转 N 圈后读取） */
 
     (void)pv;
 
@@ -261,9 +262,10 @@ void CanTxTask(void const *pv)
         {
             delta = 0xFFFF;
         }
+        total += delta;
         CanSendMotorData((uint16_t)delta);
-        NodePrint("[NODE2] TX 0x202 speed=%u cnt=%ld\r\n",
-                  (unsigned)delta, (long)enc);
+        NodePrint("[NODE2] TX 0x202 speed=%u total=%ld\r\n",
+                  (unsigned)delta, (long)total);
 
         if ((cnt % 5U) == 0U)
         {
