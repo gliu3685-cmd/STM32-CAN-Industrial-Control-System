@@ -43,7 +43,8 @@ void MotorInit(void)
     gpio.Pin  = GPIO_PIN_1;
     gpio.Mode = GPIO_MODE_OUTPUT_PP;
     HAL_GPIO_Init(GPIOA, &gpio);
-    HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_SET);
+    /* 默认低电平：IN1/IN2 双低 = 停转（安全态），避免上电即转 */
+    HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_RESET);
 
     /* PA6/PA7 = TIM3_CH1/CH2：编码器 A/B 输入 */
     gpio.Pin  = GPIO_PIN_6 | GPIO_PIN_7;
@@ -97,9 +98,11 @@ void MotorInit(void)
   */
 void MotorSetDuty(uint16_t duty)
 {
-    if (duty > MOTOR_DUTY_MAX)
+    /* L298N：CCR>ARR(999) 时 PWM 恒高，IN1/IN2 双高 = 刹车；
+       协议 0~1000 映射占空比，1000 钳到 999 表示接近全速而非刹车 */
+    if (duty > (MOTOR_DUTY_MAX - 1U))
     {
-        duty = MOTOR_DUTY_MAX;
+        duty = MOTOR_DUTY_MAX - 1U;
     }
     __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_1, duty);
 }
