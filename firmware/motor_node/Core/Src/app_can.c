@@ -231,14 +231,15 @@ void CanRxTask(void const *pv)
 }
 
 /**
-  * @brief  CAN 发送任务：每 1s 上报真实编码器速度（0x202）
+  * @brief  CAN 发送任务：50ms 采样，串口输出波形数据（rpm,target），
+  *         每 1s 累加后上报 0x202（RPM）
   */
 void CanTxTask(void const *pv)
 {
     uint32_t cnt = 0;
     int32_t  last_enc = 0;
     int32_t  enc, delta;
-    int32_t  total = 0;   /* Day25：标定用累计计数（重启清零，转 N 圈后读取） */
+    int32_t  sum = 0;     /* 1s 累计差值，用于 0x202 周期上报 */
 
     (void)pv;
 
@@ -251,7 +252,7 @@ void CanTxTask(void const *pv)
 
     for (;;)
     {
-        /* Day24/25：0x202 上报真实速度（Day25 起为 RPM，绝对值） */
+        /* 50ms 采样编码器差值（绝对值，规避 16 位回绕） */
         enc   = MotorGetCount();
         delta = enc - last_enc;
         last_enc = enc;
@@ -263,26 +264,25 @@ void CanTxTask(void const *pv)
         {
             delta = 0xFFFF;
         }
-        total += delta;
-        /* RPM = 每秒计数 x 60 / 每转计数；delta<=0xFFFF 时最大值约 3644，2 字节足够 */
-        uint16_t rpm = (uint16_t)((uint32_t)delta * 60U / ENC_COUNTS_PER_REV);
-        CanSendMotorData(rpm);
-        NodePrint("[NODE2] TX 0x202 rpm=%u total=%ld\r\n",
-                  (unsigned)rpm, (long)total);
+        sum += delta;
 
-        if ((cnt % 5U) == 0U)
-        {
-            uint32_t esr = hcan1.Instance->ESR;
-            NodePrint("[NODE2] DBG State=%u LEC=%lu TEC=%lu REC=%lu PCLK1=%lu SYSCLK=%lu\r\n",
-                      (unsigned)hcan1.State,
-                      (unsigned long)((esr >> 4U) & 0x7U),
-                      (unsigned long)((esr >> 24U) & 0xFFU),
-                      (unsigned long)((esr >> 16U) & 0xFFU),
-                      (unsigned long)HAL_RCC_GetPCLK1Freq(),
-                      (unsigned long)SystemCoreClock);
-        }
+        /* Day26：纯数据行 rpm,target（SerialPlot/VOFA+ FireWater CSV），20Hz */
+        uint32_t cps = (uint32_t)delta * 20U;              /* 50ms 差值 → 每秒等效计数 */
+        uint16_t rpm = (uint16_t)(cps * 60U / ENC_COUNTS_PER_REV);
+        NodePrint("%u,%u\r\n", (unsigned)rpm, (unsigned)g_speed);
 
         cnt++;
-        vTaskDelay(pdMS_TO_TICKS(1000));
+        if ((cnt % 20U) == 0U)                             /* 每 1s 发一次 0x202 */
+        {
+            uint32_t rpm1s = (uint32_t)sum * 60U / ENC_COUNTS_PER_REV;
+            if (rpm1s > 0xFFFFU)
+            {
+                rpm1s = 0xFFFFU;
+            }
+            CanSendMotorData((uint16_t)rpm1s);
+            sum = 0;
+        }
+
+        vTaskDelay(pdMS_TO_TICKS(50));
     }
 }
