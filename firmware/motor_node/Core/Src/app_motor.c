@@ -98,11 +98,11 @@ void MotorInit(void)
   */
 void MotorSetDuty(uint16_t duty)
 {
-    /* L298N：CCR>ARR(999) 时 PWM 恒高，IN1/IN2 双高 = 刹车；
-       协议 0~1000 映射占空比，1000 钳到 999 表示接近全速而非刹车 */
-    if (duty > (MOTOR_DUTY_MAX - 1U))
+    /* 钳到 MOTOR_DUTY_LIMIT：既避免 CCR>ARR 恒高（L298N 双高刹车），
+       也限制最高转速（Day25 起默认 80% 上限） */
+    if (duty > MOTOR_DUTY_LIMIT)
     {
-        duty = MOTOR_DUTY_MAX - 1U;
+        duty = MOTOR_DUTY_LIMIT;
     }
     __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_1, duty);
 }

@@ -11,6 +11,8 @@
 
 /* 占空比范围：0~1000（0.1% 分辨率，ARR=999） */
 #define MOTOR_DUTY_MAX   (1000U)
+/* 速度上限（协议仍收 0~1000，但实际驱动钳到 80%，防止电机过快） */
+#define MOTOR_DUTY_LIMIT (800U)
 
 /* Day25 实测：输出轴每转编码器计数（数圈法 10 圈 = 10788 计数） */
 #define ENC_COUNTS_PER_REV  (1079U)
