@@ -12,6 +12,9 @@
 /* 占空比范围：0~1000（0.1% 分辨率，ARR=999） */
 #define MOTOR_DUTY_MAX   (1000U)
 
+/* Day25 实测：输出轴每转编码器计数（数圈法 10 圈 = 10788 计数） */
+#define ENC_COUNTS_PER_REV  (1079U)
+
 /**
   * @brief  电机初始化：TIM2 PWM(PA0) + TIM3 编码器(PA6/PA7) + 方向脚(PA1)
   * @retval 无

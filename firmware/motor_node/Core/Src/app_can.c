@@ -251,7 +251,7 @@ void CanTxTask(void const *pv)
 
     for (;;)
     {
-        /* Day24：0x202 上报真实编码器速度（每秒计数值，绝对值） */
+        /* Day24/25：0x202 上报真实速度（Day25 起为 RPM，绝对值） */
         enc   = MotorGetCount();
         delta = enc - last_enc;
         last_enc = enc;
@@ -264,9 +264,11 @@ void CanTxTask(void const *pv)
             delta = 0xFFFF;
         }
         total += delta;
-        CanSendMotorData((uint16_t)delta);
-        NodePrint("[NODE2] TX 0x202 speed=%u total=%ld\r\n",
-                  (unsigned)delta, (long)total);
+        /* RPM = 每秒计数 x 60 / 每转计数；delta<=0xFFFF 时最大值约 3644，2 字节足够 */
+        uint16_t rpm = (uint16_t)((uint32_t)delta * 60U / ENC_COUNTS_PER_REV);
+        CanSendMotorData(rpm);
+        NodePrint("[NODE2] TX 0x202 rpm=%u total=%ld\r\n",
+                  (unsigned)rpm, (long)total);
 
         if ((cnt % 5U) == 0U)
         {
