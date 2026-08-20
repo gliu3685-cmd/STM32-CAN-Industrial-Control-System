@@ -114,7 +114,10 @@ void MotorSetDuty(uint16_t duty)
   */
 void MotorSetDir(uint8_t dir)
 {
-    HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, dir ? GPIO_PIN_SET : GPIO_PIN_RESET);
+    /* L298N：正向 = IN2 拉低，IN1 接 PWM，电机速度与 duty 成正比；
+       若 IN2 恒高，duty 越大 IN1/IN2 同为高的时间越多 = 越接近刹车（速度映射反了）。
+       dir=1 正向 → PA1 低；dir=0 反向 → PA1 高（协议当前未用反向） */
+    HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, dir ? GPIO_PIN_RESET : GPIO_PIN_SET);
 }
 
 /**

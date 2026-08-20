@@ -220,17 +220,9 @@ void CanRxTask(void const *pv)
             if ((frame.id == CAN_CMD_ID) && (frame.data[0] == 0x01U))
             {
                 g_speed = (uint16_t)(frame.data[1] | ((uint16_t)frame.data[2] << 8));
-                if (g_speed == 0U)
-                {
-                    /* 速度 0 = 停转：IN1/IN2 双低（自由滑行），而非 IN2 高 + PWM 0（会全速转） */
-                    MotorSetDuty(0U);
-                    MotorSetDir(0U);
-                }
-                else
-                {
-                    MotorSetDuty(g_speed);      /* 0~1000 = 0~100% 占空比（1000 钳到 999） */
-                    MotorSetDir(1U);            /* 固定正向 */
-                }
+                /* 正向 = IN2 低；speed=0 时 IN1/IN2 双低 = 停转，speed>0 时速度与 duty 成正比 */
+                MotorSetDuty(g_speed);
+                MotorSetDir(1U);
                 NodePrint("[NODE2] CMD set-speed=%u -> duty\r\n", (unsigned)g_speed);
                 CanSendMotorData(g_speed);      /* 应答回传设定值 */
             }
@@ -254,7 +246,7 @@ void CanTxTask(void const *pv)
 
     /* Day23：电机驱动初始化；Day24 起默认停转，由 0x201 命令驱动 */
     MotorInit();
-    MotorSetDir(0U);   /* 默认停转：IN1/IN2 双低，避免上电即转 */
+    MotorSetDir(1U);   /* 正向（IN2 低）+ duty 0 = 双低停转，避免上电即转 */
     MotorSetDuty(0U);
 
     for (;;)
