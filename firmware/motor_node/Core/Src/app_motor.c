@@ -52,9 +52,10 @@ void MotorInit(void)
     gpio.Pull = GPIO_NOPULL;
     HAL_GPIO_Init(GPIOA, &gpio);
 
-    /* TIM2：PWM，9kHz（PSC=7 → 9MHz，ARR=999 → 9kHz） */
+    /* TIM2：PWM，2kHz（PSC=35 → 2MHz，ARR=999 → 2kHz）。
+       由 9kHz 降频，减少 PWM 开关沿耦合进编码器 A/B 线的噪声 */
     htim2.Instance = TIM2;
-    htim2.Init.Prescaler = 7U;
+    htim2.Init.Prescaler = 35U;
     htim2.Init.CounterMode = TIM_COUNTERMODE_UP;
     htim2.Init.Period = 999U;
     htim2.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
