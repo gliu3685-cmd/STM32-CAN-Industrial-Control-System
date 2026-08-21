@@ -224,6 +224,9 @@ void CanTxTask(void const *pv)
     int32_t  last_enc = 0;
     int32_t  enc, delta;
     int32_t  sum = 0;     /* 1s 累计差值，用于 0x202 周期上报 */
+    int32_t  win[4] = {0};/* 200ms 滑动窗口，用于平滑 PWM 噪声 */
+    uint32_t wpos = 0;
+    int32_t  wsum = 0;
 
     (void)pv;
 
@@ -250,9 +253,13 @@ void CanTxTask(void const *pv)
         }
         sum += delta;
 
-        /* Day26：纯数据行 rpm,target（SerialPlot/VOFA+ FireWater CSV），20Hz */
-        uint32_t cps = (uint32_t)delta * 20U;              /* 50ms 差值 → 每秒等效计数 */
-        uint16_t rpm = (uint16_t)(cps * 60U / ENC_COUNTS_PER_REV);
+        /* Day26：纯数据行 rpm,target（SerialPlot/VOFA+ FireWater CSV），20Hz。
+           用 200ms 滑动平均（4 个 50ms 差值）抑制 PWM 耦合进编码器的噪声，读数更贴近真实转速 */
+        wsum -= win[wpos];
+        win[wpos] = delta;
+        wsum += delta;
+        wpos = (wpos + 1U) & 3U;
+        uint16_t rpm = (uint16_t)((uint32_t)wsum * 300U / ENC_COUNTS_PER_REV);
         NodePrint("%u,%u\r\n", (unsigned)rpm, (unsigned)g_speed);
 
         cnt++;
