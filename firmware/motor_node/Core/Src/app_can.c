@@ -71,26 +71,18 @@ void NodeCanInit(void)
 void CanStart(void)
 {
     CAN_FilterTypeDef filter = {0};
-    GPIO_InitTypeDef diag = {0};
-
-    /* 临时诊断：读 PA11（CAN1_RX）当前电平，判断 TJA1050 RXD 是否输出隐性高电平 */
-    diag.Pin = GPIO_PIN_11;
-    diag.Mode = GPIO_MODE_INPUT;
-    diag.Pull = GPIO_NOPULL;
-    HAL_GPIO_Init(GPIOA, &diag);
-    NodePrint("[NODE2] PA11 level=%u\r\n",
-              (unsigned)HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_11));
+    GPIO_InitTypeDef gpio = {0};
 
     /* 恢复 CAN1 引脚：PA11=RX（输入上拉），PA12=TX（复用推挽） */
-    diag.Mode = GPIO_MODE_INPUT;
-    diag.Pull = GPIO_PULLUP;
-    diag.Pin = GPIO_PIN_11;
-    HAL_GPIO_Init(GPIOA, &diag);
-    diag.Mode = GPIO_MODE_AF_PP;
-    diag.Speed = GPIO_SPEED_FREQ_HIGH;
-    diag.Pin = GPIO_PIN_12;
-    diag.Pull = GPIO_NOPULL;
-    HAL_GPIO_Init(GPIOA, &diag);
+    gpio.Mode = GPIO_MODE_INPUT;
+    gpio.Pull = GPIO_PULLUP;
+    gpio.Pin = GPIO_PIN_11;
+    HAL_GPIO_Init(GPIOA, &gpio);
+    gpio.Mode = GPIO_MODE_AF_PP;
+    gpio.Speed = GPIO_SPEED_FREQ_HIGH;
+    gpio.Pin = GPIO_PIN_12;
+    gpio.Pull = GPIO_NOPULL;
+    HAL_GPIO_Init(GPIOA, &gpio);
 
     /* 清调试冻结位：Debug 模式下 ST-LINK 可能置 DBF=1，
        导致 CAN 内核退不出初始化模式（INAK 恒为 1，Start 超时） */
@@ -107,21 +99,13 @@ void CanStart(void)
     filter.FilterScale          = CAN_FILTERSCALE_32BIT;
     filter.FilterActivation     = CAN_FILTER_ENABLE;
 
-    HAL_StatusTypeDef r1 = HAL_CAN_ConfigFilter(&hcan1, &filter);
-    HAL_StatusTypeDef r2 = HAL_CAN_Start(&hcan1);
-    HAL_StatusTypeDef r3 = HAL_CAN_ActivateNotification(&hcan1,
-                                     CAN_IT_RX_FIFO0_MSG_PENDING |
-                                     CAN_IT_ERROR |
-                                     CAN_IT_BUSOFF |
-                                     CAN_IT_LAST_ERROR_CODE);
-
-    NodePrint("[NODE2] CanStart f=%d s=%d n=%d State=%u err=0x%08lX\r\n",
-              (int)r1, (int)r2, (int)r3,
-              (unsigned)hcan1.State, (unsigned long)hcan1.ErrorCode);
-    NodePrint("[NODE2] MSR=0x%08lX MCR=0x%08lX BTR=0x%08lX\r\n",
-              (unsigned long)hcan1.Instance->MSR,
-              (unsigned long)hcan1.Instance->MCR,
-              (unsigned long)hcan1.Instance->BTR);
+    (void)HAL_CAN_ConfigFilter(&hcan1, &filter);
+    (void)HAL_CAN_Start(&hcan1);
+    (void)HAL_CAN_ActivateNotification(&hcan1,
+                                       CAN_IT_RX_FIFO0_MSG_PENDING |
+                                       CAN_IT_ERROR |
+                                       CAN_IT_BUSOFF |
+                                       CAN_IT_LAST_ERROR_CODE);
 }
 
 /**
@@ -136,8 +120,8 @@ void HAL_CAN_ErrorCallback(CAN_HandleTypeDef *hcan)
         return;
     }
 
-    /* ISR 上下文禁止 printf（会与任务打印交错丢字），
-       错误详情由 CanTxTask 每 5 秒读取 ESR 打印 */
+    /* ISR 上下文禁止 printf（会与任务打印交错丢字）；
+       错误恢复为 READY，让发送继续（Day26 起波形模式不再周期打印 ESR） */
     hcan->State = HAL_CAN_STATE_READY;
 }
 

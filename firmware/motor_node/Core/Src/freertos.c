@@ -128,7 +128,6 @@ void MX_FREERTOS_Init(void) {
 void StartDefaultTask(void const * argument)
 {
   /* USER CODE BEGIN StartDefaultTask */
-  printf("[NODE2] FreeRTOS running\r\n");
 
   for(;;)
   {
