@@ -220,13 +220,12 @@ void CanRxTask(void const *pv)
   */
 void CanTxTask(void const *pv)
 {
-    uint32_t cnt = 0;
     int32_t  last_enc = 0;
     int32_t  enc, delta;
-    int32_t  sum = 0;     /* 1s 累计差值，用于 0x202 周期上报 */
-    int32_t  win[4] = {0};/* 200ms 滑动窗口，用于平滑 PWM 噪声 */
-    uint32_t wpos = 0;
-    int32_t  wsum = 0;
+    int32_t  sum = 0;     /* 两次 0x202 之间的累计差值 */
+    uint32_t last_tick = 0;
+    uint32_t last_send = 0;
+    uint32_t rpm_sm = 0;  /* EMA 平滑后的 rpm */
 
     (void)pv;
 
@@ -236,9 +235,16 @@ void CanTxTask(void const *pv)
     MotorInit();
     MotorSetDir(1U);   /* 正向（IN2 低）+ duty 0 = 双低停转，避免上电即转 */
     MotorSetDuty(0U);
+    last_tick = HAL_GetTick();
+    last_send = last_tick;
 
     for (;;)
     {
+        uint32_t now = HAL_GetTick();
+        uint32_t dt = now - last_tick;
+        last_tick = now;
+        if (dt == 0U) { dt = 1U; }
+
         /* 50ms 采样编码器差值（绝对值，规避 16 位回绕） */
         enc   = MotorGetCount();
         delta = enc - last_enc;
@@ -253,25 +259,24 @@ void CanTxTask(void const *pv)
         }
         sum += delta;
 
-        /* Day26：纯数据行 rpm,target（SerialPlot/VOFA+ FireWater CSV），20Hz。
-           用 200ms 滑动平均（4 个 50ms 差值）抑制 PWM 耦合进编码器的噪声，读数更贴近真实转速 */
-        wsum -= win[wpos];
-        win[wpos] = delta;
-        wsum += delta;
-        wpos = (wpos + 1U) & 3U;
-        uint16_t rpm = (uint16_t)((uint32_t)wsum * 300U / ENC_COUNTS_PER_REV);
-        NodePrint("%u,%u\r\n", (unsigned)rpm, (unsigned)g_speed);
+        /* Day26：实时 RPM 用实际 dt 换算（不假设固定 50ms），再用 EMA 平滑噪声；
+           纯数据行 rpm,target 供 SerialPlot/VOFA+ */
+        uint32_t rpm = (uint32_t)delta * 60000U / (dt * ENC_COUNTS_PER_REV);
+        rpm_sm = (rpm_sm * 3U + rpm) / 4U;
+        NodePrint("%u,%u\r\n", (unsigned)rpm_sm, (unsigned)g_speed);
 
-        cnt++;
-        if ((cnt % 20U) == 0U)                             /* 每 1s 发一次 0x202 */
+        if ((now - last_send) >= 1000U)                    /* 每约 1s 发一次 0x202 */
         {
-            uint32_t rpm1s = (uint32_t)sum * 60U / ENC_COUNTS_PER_REV;
+            uint32_t el = (now - last_send);
+            if (el == 0U) { el = 1U; }
+            uint32_t rpm1s = (uint32_t)sum * 60000U / (el * ENC_COUNTS_PER_REV);
             if (rpm1s > 0xFFFFU)
             {
                 rpm1s = 0xFFFFU;
             }
             CanSendMotorData((uint16_t)rpm1s);
             sum = 0;
+            last_send = now;
         }
 
         vTaskDelay(pdMS_TO_TICKS(50));
