@@ -88,7 +88,6 @@ void MotorInit(void)
     HAL_TIM_Encoder_Init(&htim3, &enc);
     HAL_TIM_Encoder_Start(&htim3, TIM_CHANNEL_ALL);
 
-    printf("[NODE2] MotorInit ok, PWM 9kHz, encoder ready\r\n");
 }
 
 /**
