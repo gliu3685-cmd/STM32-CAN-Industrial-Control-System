@@ -49,7 +49,9 @@ void MotorInit(void)
     /* PA6/PA7 = TIM3_CH1/CH2：编码器 A/B 输入 */
     gpio.Pin  = GPIO_PIN_6 | GPIO_PIN_7;
     gpio.Mode = GPIO_MODE_INPUT;
-    gpio.Pull = GPIO_NOPULL;
+    /* 霍尔编码器多为开集输出，必须上拉；
+       NOPULL 时引脚悬空，电机运行时 PWM 噪声易被误计为脉冲 */
+    gpio.Pull = GPIO_PULLUP;
     HAL_GPIO_Init(GPIOA, &gpio);
 
     /* TIM2：PWM，2kHz（PSC=35 → 2MHz，ARR=999 → 2kHz）。
@@ -127,4 +129,31 @@ void MotorSetDir(uint8_t dir)
 int32_t MotorGetCount(void)
 {
     return (int32_t)__HAL_TIM_GET_COUNTER(&htim3);
+}
+
+/* PID 状态（增量式，20ms 周期） */
+static int32_t pid_err1 = 0;
+static int32_t pid_err2 = 0;
+static int32_t pid_out  = 0;
+
+/**
+  * @brief  增量式 PID：Δout = Kp(e-e1) + Ki*e + Kd(e-2e1+e2)
+  *         积分分离：|e| 大于阈值时 Ki 项置 0，防止启动/大阶跃积分饱和；
+  *         输出限幅到 [0, MOTOR_DUTY_LIMIT]（无反向制动）
+  */
+uint16_t MotorPidCompute(uint16_t target_rpm, uint16_t rpm_fb)
+{
+    int32_t e  = (int32_t)target_rpm - (int32_t)rpm_fb;
+    int32_t ea = (e < 0) ? -e : e;
+    int32_t dout = PID_KP * (e - pid_err1)
+                 + ((ea > PID_INT_SEP_ERR) ? 0 : PID_KI) * e
+                 + PID_KD * (e - 2 * pid_err1 + pid_err2);
+
+    pid_out += dout;
+    if (pid_out > (int32_t)MOTOR_DUTY_LIMIT) pid_out = MOTOR_DUTY_LIMIT;
+    if (pid_out < 0) pid_out = 0;
+
+    pid_err2 = pid_err1;
+    pid_err1 = e;
+    return (uint16_t)pid_out;
 }

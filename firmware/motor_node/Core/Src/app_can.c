@@ -204,8 +204,8 @@ void CanRxTask(void const *pv)
             if ((frame.id == CAN_CMD_ID) && (frame.data[0] == 0x01U))
             {
                 g_speed = (uint16_t)(frame.data[1] | ((uint16_t)frame.data[2] << 8));
-                /* 正向 = IN2 低；speed=0 时 IN1/IN2 双低 = 停转，speed>0 时速度与 duty 成正比 */
-                MotorSetDuty(g_speed);
+                /* Day27：占空比改由 PID 任务每 20ms 计算；
+                   这里只记录目标速度并固定正向 */
                 MotorSetDir(1U);
                 NodePrint("[NODE2] CMD set-speed=%u -> duty\r\n", (unsigned)g_speed);
                 CanSendMotorData(g_speed);      /* 应答回传设定值 */
@@ -259,11 +259,22 @@ void CanTxTask(void const *pv)
         }
         sum += delta;
 
-        /* Day26：实时 RPM 用实际 dt 换算（不假设固定 50ms），再用 EMA 平滑噪声；
+        /* Day26：实时 RPM 用实际 dt 换算（不假设固定 20ms），再用 EMA 平滑噪声；
            纯数据行 rpm,target 供 SerialPlot/VOFA+ */
         uint32_t rpm = (uint32_t)delta * 60000U / (dt * ENC_COUNTS_PER_REV);
         rpm_sm = (rpm_sm * 3U + rpm) / 4U;
         NodePrint("%u,%u\r\n", (unsigned)rpm_sm, (unsigned)g_speed);
+
+        /* Day27：PID 速度闭环，20ms 周期。
+           目标速度映射：g_speed(0~1000) 近似除以 2 得 RPM（500≈257RPM 实测附近），
+           调参时可按实际标定调整；速度 0 直接停转 */
+        uint16_t target_rpm = (uint16_t)((uint32_t)g_speed / 2U);
+        uint16_t duty = MotorPidCompute(target_rpm, (uint16_t)rpm_sm);
+        if (g_speed == 0U)
+        {
+            duty = 0U;
+        }
+        MotorSetDuty(duty);
 
         if ((now - last_send) >= 1000U)                    /* 每约 1s 发一次 0x202 */
         {
@@ -279,6 +290,6 @@ void CanTxTask(void const *pv)
             last_send = now;
         }
 
-        vTaskDelay(pdMS_TO_TICKS(50));
+        vTaskDelay(pdMS_TO_TICKS(20));
     }
 }
