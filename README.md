@@ -2,7 +2,7 @@
 
 基于 STM32 + FreeRTOS + CAN 总线的三节点工业控制系统原型，模拟工业现场"传感器采集 → 主控决策 → 执行器响应"的分布式控制链路。
 
-系统以 STM32F407 为主控节点，两个 STM32F103 分别作为传感节点和执行节点，覆盖实时任务调度、CAN 总线通信、故障监测等工业嵌入式核心环节；电机 PID 闭环控制（Phase 4）与 STM32 IAP 固件升级（可选加分项）为后续规划。
+系统以 STM32F407 为主控节点，两个 STM32F103 分别作为传感节点和执行节点，覆盖实时任务调度、CAN 总线通信、故障监测等工业嵌入式核心环节；电机 PID 速度闭环（Phase 4，代码就绪/实测延后）与 STM32 IAP 固件升级（学习与代码完成，待上电验证）。
 
 ---
 
@@ -24,7 +24,7 @@
 
 ```
 传感器采集 → CAN 通信 → 主控决策 → CAN 指令 → 电机执行 → 编码器反馈 → PID 闭环
-（传感器/电机/PID 为 Phase 4 规划，当前传感器与电机数据为节点模拟上报）
+（PID 闭环实测延后，当前为代码就绪状态）
 ```
 
 **节点职责**：
@@ -72,8 +72,8 @@ FreeRTOS Scheduler
 | MCU | STM32F407VET6、STM32F103C8T6 |
 | RTOS | FreeRTOS（CMSIS_V1） |
 | 通信 | CAN 总线（500 kbps），自定义应用层协议 |
-| 控制 | PWM 输出、编码器反馈、PID 速度闭环（Phase 4 规划） |
-| 传感器 | 温度采集（模拟）；MPU6050 六轴姿态（Phase 4 规划） |
+| 控制 | PWM 输出、编码器反馈、PID 速度闭环（Phase 4 代码就绪） |
+| 传感器 | 温度采集（模拟）；MPU6050 六轴姿态（已实现） |
 | 工具 | STM32CubeMX、STM32CubeIDE、ST-Link V2、Git |
 
 ---
@@ -107,19 +107,21 @@ FreeRTOS Scheduler
 - ✅ 请求/应答命令帧闭环（0x101 请求上报、0x201 设置速度）
 - ✅ 30 分钟压力测试（错误计数 0、无误报、无丢帧）
 
-### Phase 4：电机控制闭环 ⏳ 规划中
+### Phase 4：电机控制闭环 🔄 进行中（代码就绪，闭环实测延后）
 
-- PWM 电机驱动（L298N）
-- 编码器反馈采集（TIM 编码器模式）
-- PID 速度闭环控制
+- ✅ PWM 电机驱动（L298N，含极性修复）
+- ✅ 编码器反馈采集与标定（PPR=1079，0x202 上报 RPM）
+- ✅ PID 速度闭环（增量式 + 积分分离/限幅，20ms 周期）
+- ⏳ 闭环实测与调参（编码器 PWM 噪声问题延后处理）
 
-### Phase 5：IAP Bootloader 🔄 进行中（代码就绪，待上电验证）
+### Phase 5：IAP Bootloader ✅ 学习与代码完成（待上电验证）
 
-- Flash 分区管理与向量表偏移
-- CRC32 校验与固件升级协议
-- Python 上位机升级工具
+- ✅ Flash 分区管理与向量表偏移（Day29-30）
+- ✅ Bootloader 跳转与升级模式（Day31-32）
+- ✅ UART 升级协议 + Python 上位机（Day33）
+- ✅ CRC32 完整性校验，损坏固件拒绝（Day34）
 
-实施计划见 [docs/bootloader-plan.md](docs/bootloader-plan.md)（F407ZGTx + UART，Day 29-34）。
+学习记录见 [docs/day29.md](docs/day29.md) ~ [docs/day34.md](docs/day34.md)；实施计划见 [docs/bootloader-plan.md](docs/bootloader-plan.md)（F407ZGTx + UART）。上电验证遵守"PID 闭环完成后"的烧录顺序约束。
 
 ### Phase 6：项目整理 ⏳ 规划中
 
@@ -139,7 +141,7 @@ FreeRTOS Scheduler
 | 0x102 | Node1 → 主控 | 2 | 温度数据：temp(2B 小端)，1s |
 | 0x103 | Node1 → 总线 | 6 | MPU6050 加速度计：ax/ay/az(各 2B 小端)，1s（主控暂未启用） |
 | 0x201 | 主控 → Node2 | 3 | 命令帧：data[0]=0x01 设置速度，data[1..2]=目标速度(2B 小端) |
-| 0x202 | Node2 → 主控 | 2 | 速度数据：speed(2B 小端)，1s |
+| 0x202 | Node2 → 主控 | 2 | 速度数据：RPM(2B 小端)，1s（Day25 起） |
 
 ---
 
@@ -150,9 +152,11 @@ STM32-CAN-Industrial-Control-System
 ├── firmware/
 │   ├── master_node/        # F407 主控工程（FreeRTOS + HAL）
 │   ├── sensor_node/        # F103 传感器节点工程
-│   └── motor_node/         # F103 电机节点工程
+│   ├── motor_node/         # F103 电机节点工程
+│   └── bootloader/         # F407 IAP Bootloader 工程
 ├── docs/                   # 学习记录与协议文档
 ├── hardware/               # 硬件接线说明
+├── tools/                  # 上位机工具（UART 升级、冒烟测试）
 ├── 学习进度.md             # 每日学习进度跟踪
 └── README.md
 ```
@@ -189,6 +193,16 @@ STM32-CAN-Industrial-Control-System
 - [Day 22：电机 PID 预热（理论 + 硬件接线）](docs/day22.md)
 - [Day 23：Node2 TIM2 PWM + TIM3 编码器驱动](docs/day23.md)
 - [Day 24：CAN 命令驱动电机 + 真实编码器上报](docs/day24.md)
+- [Day 25：编码器标定 + RPM 换算](docs/day25.md)
+- [Day 26：SerialPlot 波形 + 开环阶跃](docs/day26.md)
+- [Day 27：PID 速度闭环](docs/day27.md)
+- [Day 28：PID 调参与三节点联调](docs/day28.md)
+- [Day 29：Bootloader 理论 + Flash 布局](docs/day29.md)
+- [Day 30：APP 地址偏移 + VTOR](docs/day30.md)
+- [Day 31：Bootloader 跳转 APP](docs/day31.md)
+- [Day 32：升级模式设计](docs/day32.md)
+- [Day 33：UART 固件传输](docs/day33.md)
+- [Day 34：CRC32 完整性校验](docs/day34.md)
 
 ---
 
