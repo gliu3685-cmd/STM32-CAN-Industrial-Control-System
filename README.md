@@ -217,6 +217,8 @@ STM32-CAN-Industrial-Control-System
 - [Day 32：升级模式设计](docs/day32.md)
 - [Day 33：UART 固件传输](docs/day33.md)
 - [Day 34：CRC32 完整性校验](docs/day34.md)
+- [面试问答笔记（FreeRTOS/CAN/PID/Bootloader）](docs/interview-notes.md)
+- [项目叙事（简历版 + 口述版）](docs/project-narrative.md)
 
 ---
 
