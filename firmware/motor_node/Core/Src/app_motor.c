@@ -14,7 +14,6 @@
 
 #include "app_motor.h"
 #include "stm32f1xx_hal_tim.h"
-#include <stdio.h>
 
 /* TIM 句柄（本地静态，不依赖 CubeMX 生成） */
 static TIM_HandleTypeDef htim2;

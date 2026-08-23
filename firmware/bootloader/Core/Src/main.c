@@ -69,14 +69,6 @@ int main(void)
     while (1) { HAL_Delay(1000); }
   }
   /* USER CODE END 2 */
-
-  /* Infinite loop */
-  /* USER CODE BEGIN WHILE */
-  while (1)
-  {
-    /* 后续任务在此接入：1s 握手窗口、APP 跳转、升级协议循环 */
-  }
-  /* USER CODE END WHILE */
 }
 
 /**

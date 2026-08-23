@@ -69,7 +69,7 @@ void CanStart(void)
 
 /**
   * @brief  CAN 错误中断回调（HAL 在错误中断中调用）
-  *         打印错误码，便于定位 ACK/总线关闭等故障
+  *         仅恢复状态机；错误详情由任务周期读取 ESR 打印
   * @param  hcan: CAN 句柄
   * @retval 无
   */
@@ -80,25 +80,10 @@ void HAL_CAN_ErrorCallback(CAN_HandleTypeDef *hcan)
         return;
     }
 
-    /* 注意：ISR 上下文不能用互斥锁，此处直接用 printf（临时诊断） */
-    printf("[CAN_ERR] code=0x%08lX", (unsigned long)hcan->ErrorCode);
-    if (hcan->ErrorCode & HAL_CAN_ERROR_ACK)
-    {
-        printf(" ACK(no node responding!)");
-    }
-    if (hcan->ErrorCode & HAL_CAN_ERROR_BOF)
-    {
-        printf(" BUS-OFF");
-    }
-    if (hcan->ErrorCode & HAL_CAN_ERROR_EWG)
-    {
-        printf(" WARNING");
-    }
-    if (hcan->ErrorCode & HAL_CAN_ERROR_EPV)
-    {
-        printf(" PASSIVE");
-    }
-    printf("\r\n");
+    /* ISR 上下文禁止 printf（会与任务打印抢占 UART，Day13 规则）；
+       错误详情由任务周期读取 ESR 打印 */
+    /* 恢复状态机：错误中断处理完后让外设回到可发送状态 */
+    hcan->State = HAL_CAN_STATE_READY;
 }
 
 /**
