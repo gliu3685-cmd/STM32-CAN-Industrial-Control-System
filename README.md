@@ -8,6 +8,8 @@
 
 ## 1. 系统架构
 
+完整任务与通信设计见 [docs/system-architecture.md](docs/system-architecture.md)。
+
 ```mermaid
 flowchart TB
     M["STM32F407 Master 主控调度"]
@@ -143,6 +145,8 @@ FreeRTOS Scheduler
 ## 5. 自定义 CAN 协议
 
 三节点总线采用 11 位标准帧，固定 ID 分配（详见 [Day19 记录](docs/day19.md)）：
+
+协议全文见 [docs/can-protocol.md](docs/can-protocol.md)。
 
 | 帧 ID | 方向 | DLC | 内容 |
 |---|---|---|---|
