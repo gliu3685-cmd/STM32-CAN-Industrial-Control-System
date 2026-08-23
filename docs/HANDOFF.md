@@ -17,16 +17,16 @@
 - 仓库：`STM32-CAN-Industrial-Control-System`
 - 本地副本：`C:\Users\zwq66\Documents\柳\STM32-CAN-Industrial-Control-System`（唯一工作副本）
 - 远程：`https://github.com/gliu3685-cmd/STM32-CAN-Industrial-Control-System`
-- 当前阶段：**Phase 4 电机控制闭环**（Day 24 代码完成，等待 12V 电源线验证）
+- 当前阶段：**Phase 4 电机控制闭环（实测延后）→ 学习进入 Day29+ Bootloader**
 
 ## 2. 当前状态
 
-**阻塞点**：12V 电源线未到货，Node2 无法上电验证电机。其余全部就绪：
+**当前阻塞点**：PID 闭环实测与调参**延后**（用户决定暂不处理硬件噪声）：
 
-- Node1 MPU6050 软件 I2C 驱动 + 0x103 加速度帧：已烧录验证成功（`MPU6050 init ok`，三轴模长 ≈ 1g）
-- Node2 电机控制代码全部就绪：TIM2 PWM（PA0, 9kHz）+ TIM3 编码器模式（PA6/PA7, 4 倍频）+ 方向脚 PA1，默认停转
-- F407 主控无需改动（已在周期发 0x201）
-- 工作区干净，main 分支与 origin/main 同步
+- 12V 已到货；Day24 上电验证通过（含 L298N 极性修复），Day25 标定完成（PPR=1079，0x202 上报 RPM）
+- **Day26-28（波形/PID/调参）代码完成但实测未过**：编码器在电机转动时被 PWM 噪声污染（停转读数 0 干净、转动时 40-120 乱跳），内部上拉 + EMA + PWM 2kHz 后仍震荡；用户决定暂不处理硬件，PID 实测与调参挂起，待后续解决
+- Bootloader（Day29-34）代码与文档已完成并推送，可继续学习；**烧录验证仍遵守"PID 闭环完成后再烧录"的约束**
+- main 分支与 origin/main 同步（最近推送 3379979 含 Day24-27；238cd54 为 Day28 文档，已本地提交）
 
 **最近提交链**（均已推送）：
 
