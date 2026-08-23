@@ -8,6 +8,17 @@
 
 ## 1. 系统架构
 
+```mermaid
+flowchart TB
+    M["STM32F407 Master 主控调度"]
+    S["STM32F103 Sensor Node（温度 + MPU6050）"]
+    N["STM32F103 Motor Node（PWM + 编码器 + PID）"]
+    BUS["CAN Bus 500 kbps"]
+    M --- BUS
+    S --- BUS
+    N --- BUS
+```
+
 ```
                         CAN Bus (500 kbps)
 
@@ -16,8 +27,7 @@
             ┌────────────┴────────────┐
             │                         │
     STM32F103 Sensor Node    STM32F103 Motor Node
-    （温度上报，1s）          （速度上报，1s）
-    （MPU6050 规划中）        （PWM+PID 规划中）
+    （温度 + MPU6050，1s）    （PWM + 编码器 + PID）
 ```
 
 **功能链路**：
@@ -31,9 +41,9 @@
 
 | 节点 | 硬件 | 职责 |
 |---|---|---|
-| Master | STM32F407VET6 | 任务调度、CAN 通信管理、数据处理、故障监控 |
-| Sensor Node | STM32F103C8T6 | 温度数据采集上报（模拟）、CAN 上报（MPU6050 规划中） |
-| Motor Node | STM32F103C8T6 | 速度状态上报（模拟）、接收速度命令（PWM/PID 规划中） |
+| Master | STM32F407ZGT6 | 任务调度、CAN 通信管理、数据处理、故障监控 |
+| Sensor Node | STM32F103C8T6 | 温度数据上报 + MPU6050 六轴数据采集（CAN 上报） |
+| Motor Node | STM32F103C8T6 | PWM 电机驱动、编码器测速、PID 速度闭环（代码就绪） |
 
 ---
 
@@ -256,8 +266,46 @@ STM32-CAN-Industrial-Control-System
 
 ## 9. 硬件清单
 
-核心硬件：STM32F407VET6 最小系统板 ×1、STM32F103C8T6 最小系统板 ×2、TJA1050 CAN 收发器 ×3、ST-Link V2、USB-TTL（CH340G）。
+核心硬件：STM32F407ZGT6 最小系统板 ×1、STM32F103C8T6 最小系统板 ×2、TJA1050 CAN 收发器 ×3、ST-Link V2、USB-TTL（CH340G）。
 
 传感器与执行器：MPU6050、直流减速电机 + 霍尔编码器、L298N 电机驱动、12V 电源。
 
 调试工具：USB-CAN 分析仪、面包板、120Ω 终端电阻 ×2。
+
+---
+
+## 10. 接线与供电
+
+详细接线见 [hardware/wiring-1breadboard.md](hardware/wiring-1breadboard.md) 与 [hardware/README.md](hardware/README.md)，关键点：
+
+**CAN 总线**：三个 TJA1050 的 CANH/CANL 分别并联到总线；两端各一个 120Ω 终端电阻（本方案为 USB-CAN 分析仪近端内置 + 面包板远端一个）。
+
+| 板子 | CAN_RX | CAN_TX |
+|---|---|---|
+| F407 Master | PA11 | PA12 |
+| F103 Sensor Node | PA11 | PA12 |
+| F103 Motor Node | PA11 | PA12 |
+
+**电机与编码器（Motor Node）**：
+
+| 信号 | 引脚 |
+|---|---|
+| L298N IN1（PWM） | PA0（TIM2_CH1，2kHz） |
+| L298N IN2（方向） | PA1 |
+| 编码器 A 相 | PA6（TIM3_CH1） |
+| 编码器 B 相 | PA7（TIM3_CH2） |
+
+**MPU6050（Sensor Node）**：VCC→3.3V、GND、SCL→PB6、SDA→PB7、AD0→GND。
+
+**供电与共地**：F407 USB 供电；两块 F103 由 USB-TTL 5V 供电；L298N 用 12V 适配器独立供电（**内正外负 / 红正黑负**）；**L298N GND 必须与 F103 GND 共地**；所有 GND 汇到面包板同一行。
+
+---
+
+## 11. 演示步骤
+
+1. 分别烧录 Master、Sensor Node、Motor Node 固件（Bootloader 按烧录顺序约束暂不烧录）；
+2. 三节点上电，PCAN-View（500kbps）应看到：`0x100` 主控心跳（1s）、`0x102` 温度、`0x202` 电机速度；
+3. 发送 `0x201`（`01 F4 01` = 500）：电机转动，`0x202` 反馈实时 RPM（编码器已标定，PPR=1079）；
+4. 拔掉 Node2：主控串口应报离线；重新接回自动恢复（心跳检测）；
+5. 用 SerialPlot 观察转速曲线（Day26 波形功能）；
+6. 待 PID 闭环实测通过后，按 [docs/bootloader-plan.md](docs/bootloader-plan.md) 演示 IAP 升级（Bootloader + `tools/upgrade_tool.py`）。
