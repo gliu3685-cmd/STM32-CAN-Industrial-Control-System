@@ -57,4 +57,10 @@ int32_t MotorGetCount(void);
   */
 uint16_t MotorPidCompute(uint16_t target_rpm, uint16_t rpm_fb);
 
+/**
+  * @brief  清零 PID 状态（停机时调用，避免再次启动带着旧积分）
+  * @retval 无
+  */
+void MotorPidReset(void);
+
 #endif /* APP_MOTOR_H */

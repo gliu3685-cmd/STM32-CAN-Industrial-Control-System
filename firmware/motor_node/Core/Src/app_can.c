@@ -208,7 +208,8 @@ void CanRxTask(void const *pv)
                    这里只记录目标速度并固定正向 */
                 MotorSetDir(1U);
                 NodePrint("[NODE2] CMD set-speed=%u -> duty\r\n", (unsigned)g_speed);
-                CanSendMotorData(g_speed);      /* 应答回传设定值 */
+                /* 不再用 0x202 回传设定值：0x202 只表示实测 RPM（由 CanTxTask 每 1s 上报），
+                   避免同一 ID 两种含义导致主控误判 */
             }
         }
     }
@@ -269,10 +270,15 @@ void CanTxTask(void const *pv)
            目标速度映射：g_speed(0~1000) 近似除以 2 得 RPM（500≈257RPM 实测附近），
            调参时可按实际标定调整；速度 0 直接停转 */
         uint16_t target_rpm = (uint16_t)((uint32_t)g_speed / 2U);
-        uint16_t duty = MotorPidCompute(target_rpm, (uint16_t)rpm_sm);
+        uint16_t duty;
         if (g_speed == 0U)
         {
+            MotorPidReset();    /* 停机时清 PID 状态，下次启动从 0 起步 */
             duty = 0U;
+        }
+        else
+        {
+            duty = MotorPidCompute(target_rpm, (uint16_t)rpm_sm);
         }
         MotorSetDuty(duty);
 

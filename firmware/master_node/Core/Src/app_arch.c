@@ -38,7 +38,10 @@ extern osMutexId uartMutexHandle;
 /* 系统参数 */
 #define ARCH_NODE_NUM       (2U)       /* 两个 F103 从节点 */
 #define ARCH_RX_TIMEOUT_MS  (5000U)    /* 超过 5s 未收到帧判为离线（协议约定） */
-#define ARCH_TEMP_LIMIT     (80)       /* 节点 0 温度告警阈值（℃） */
+#define ARCH_TEMP_LIMIT     (80)       /* 节点 0 温度告警阈值（℃），达到即停机 */
+#define ARCH_TEMP_DERATE    (60)       /* 超过该温度开始线性降速（℃） */
+#define ARCH_SPEED_RATED    (500U)     /* 额定速度指令（0~1000 协议单位） */
+#define ARCH_SPEED_REFRESH_MS (1000U)  /* 速度指令不变时的重发周期 */
 #define ARCH_NODE0_DROP_CNT (25U)      /* 演示：25 帧后模拟节点 0 掉线 */
 #define ARCH_USE_SIM_NODE   (0)        /* Day15：0=真实CAN驱动，1=启用模拟数据源 */
 
@@ -225,6 +228,7 @@ static void CanRxTask(void *pv)
 static void ControlTask(void *pv)
 {
     uint16_t target;
+    int32_t  temp;
 
     (void)pv;
 
@@ -234,16 +238,36 @@ static void ControlTask(void *pv)
                             pdTRUE, pdFALSE, portMAX_DELAY);
 
         xSemaphoreTake(xSysMutex, portMAX_DELAY);
-        /* 温度越限 → 置故障标志与事件（工业中此时应降速/停机） */
-        if (gSys.node_temp[0] >= ARCH_TEMP_LIMIT)
+        temp = gSys.node_temp[0];
+        /* 控制律：传感节点离线或温度越限 → 停机（安全态）；
+                   温度进入降额区 → 线性降速；否则额定速度 */
+        if (!gSys.node_online[0] || temp >= ARCH_TEMP_LIMIT)
         {
+            target = 0U;
+        }
+        else if (temp > ARCH_TEMP_DERATE)
+        {
+            target = (uint16_t)(ARCH_SPEED_RATED * (ARCH_TEMP_LIMIT - temp) /
+                                (ARCH_TEMP_LIMIT - ARCH_TEMP_DERATE));
+        }
+        else
+        {
+            target = ARCH_SPEED_RATED;
+        }
+
+        if (temp >= ARCH_TEMP_LIMIT)
+        {
+            if (!gSys.fault_temp)
+            {
+                ArchPrint("[CTRL] temp over limit (%ldC), motor stop!\r\n", (long)temp);
+            }
             gSys.fault_temp = 1;
             xEventGroupSetBits(xSysEvents, EVT_TEMP_FAULT);
-            ArchPrint("[CTRL] temp over limit (%ld), reduce speed!\r\n",
-                      (long)gSys.node_temp[0]);
         }
-        /* 简单控制律演示：目标速度 = 1000 + 温度 × 5 */
-        target = (uint16_t)(1000 + gSys.node_temp[0] * 5);
+        else
+        {
+            gSys.fault_temp = 0;
+        }
         xSemaphoreGive(xSysMutex);
 
         if (xQueueSend(xMotorQueue, &target, 0) != pdTRUE)
@@ -254,13 +278,17 @@ static void ControlTask(void *pv)
 }
 
 /**
-  * @brief  电机任务：接收目标速度指令（Day15 起转发给电机节点或本地驱动）
+  * @brief  电机任务：接收目标速度指令，经 0x201 下发给电机节点
+  *         目标变化立即下发；不变时每 ARCH_SPEED_REFRESH_MS 重发一次，
+  *         防止单帧丢失后电机节点长期停留在旧指令
   * @param  pv: 未使用
   * @retval 无
   */
 static void MotorTask(void *pv)
 {
     uint16_t target = 0;
+    uint16_t last_sent = 0xFFFFU;
+    TickType_t last_tick = 0;
 
     (void)pv;
 
@@ -268,7 +296,19 @@ static void MotorTask(void *pv)
     {
         if (xQueueReceive(xMotorQueue, &target, portMAX_DELAY) == pdTRUE)
         {
-            ArchPrint("[MOTOR] target speed = %u\r\n", (unsigned)target);
+            TickType_t now = xTaskGetTickCount();
+
+            if (target != last_sent ||
+                (now - last_tick) >= pdMS_TO_TICKS(ARCH_SPEED_REFRESH_MS))
+            {
+                CanSendSpeed(target);
+                if (target != last_sent)
+                {
+                    ArchPrint("[MOTOR] 0x201 set-speed=%u\r\n", (unsigned)target);
+                }
+                last_sent = target;
+                last_tick = now;
+            }
         }
     }
 }
@@ -338,10 +378,10 @@ static void CanTxTask(void *pv)
         /* Day15：真实 CAN 发送，USB-CAN 分析仪可在电脑端观测 */
         CanSendHeartbeat(seq++);
 
-        /* Day21：每 5s 交替向 Node1/Node2 发送应用层命令帧 */
-        if ((seq % 5U) == 0U)
+        /* 每 10s 请求 Node1 主动上报一次；0x201 速度指令由 MotorTask 按控制决策下发 */
+        if ((seq % 10U) == 0U)
         {
-            CanSendCommand((uint8_t)((seq / 5U) % 2U));
+            CanSendReportReq();
         }
 
         vTaskDelay(pdMS_TO_TICKS(1000));
