@@ -77,11 +77,13 @@ void MotorInit(void)
     enc.IC1Polarity  = TIM_ICPOLARITY_RISING;
     enc.IC1Selection = TIM_ICSELECTION_DIRECTTI;
     enc.IC1Prescaler = TIM_ICPSC_DIV1;
-    enc.IC1Filter    = 0U;
+    /* 输入滤波 0xA：fDTS/16 采样 8 次 ≈ 1.8us，滤掉 PWM 开关沿毛刺；
+       远小于 300RPM 时约 185us 的编码器边沿间隔，不会漏计 */
+    enc.IC1Filter    = 0xAU;
     enc.IC2Polarity  = TIM_ICPOLARITY_RISING;
     enc.IC2Selection = TIM_ICSELECTION_DIRECTTI;
     enc.IC2Prescaler = TIM_ICPSC_DIV1;
-    enc.IC2Filter    = 0U;
+    enc.IC2Filter    = 0xAU;
     htim3.Instance = TIM3;
     htim3.Init.Prescaler = 0U;
     htim3.Init.CounterMode = TIM_COUNTERMODE_UP;
@@ -134,6 +136,16 @@ int32_t MotorGetCount(void)
 static int32_t pid_err1 = 0;
 static int32_t pid_err2 = 0;
 static int32_t pid_out  = 0;
+
+/**
+  * @brief  清零 PID 历史误差与累计输出
+  */
+void MotorPidReset(void)
+{
+    pid_err1 = 0;
+    pid_err2 = 0;
+    pid_out  = 0;
+}
 
 /**
   * @brief  增量式 PID：Δout = Kp(e-e1) + Ki*e + Kd(e-2e1+e2)

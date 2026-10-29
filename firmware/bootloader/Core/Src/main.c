@@ -3,7 +3,7 @@
   ******************************************************************************
   * @file           : main.c
   * @brief          : F407 Bootloader 最小工程（USART1 115200 打印 BOOT v0.1）
-  *                   工程：firmware/bootloader，占用 Flash 前 64KB（Sector 0-3）
+  *                   工程：firmware/bootloader，代码占 Sector 0-2（48KB），Sector 3 为 APP 元数据
   ******************************************************************************
   */
 /* USER CODE END Header */

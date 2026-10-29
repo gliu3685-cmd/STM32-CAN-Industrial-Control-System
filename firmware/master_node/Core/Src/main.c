@@ -62,6 +62,7 @@ int main(void)
 
   /* USER CODE BEGIN 1 */
   SCB->VTOR = 0x08010000U;              /* IAP：向量表偏移到 APP 区 */
+  __enable_irq();                       /* Bootloader 跳转前关了中断，否则 HAL_Delay 卡死 */
 
   /* USER CODE END 1 */
 

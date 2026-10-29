@@ -36,7 +36,8 @@ void BlProtocolRun(void)
             if (idx == 7)
             {
                 plen = (uint16_t)(buf[5] | (buf[6] << 8));
-                if (plen > 256) { idx = 0; stage = 0; continue; }
+                idx = 0;                   /* stage 3 从 DATA 第 0 字节重新计数 */
+                if (plen > 256) { stage = 0; continue; }
                 stage = 3;
             }
             continue;
@@ -46,7 +47,7 @@ void BlProtocolRun(void)
         {
             buf[7 + idx] = rx;
             idx++;
-            if (idx == plen + 4)
+            if (idx == (uint32_t)plen + 4U)
             {
                 uint32_t crc_rx = (uint32_t)buf[7 + plen] |
                     ((uint32_t)buf[8 + plen] << 8) |
@@ -71,16 +72,31 @@ void BlProtocolRun(void)
     }
 }
 
+/* 镜像长度合法：非 0 且不超出 APP 区（防止越界读 Flash 触发 HardFault） */
+#define IMAGE_LEN_OK(len)  ((len) > 0U && (len) <= APP_LEN_MAX)
+
 /**
-  * @brief  FINISH：对 Flash 中已写入的镜像重算 CRC32，通过则写 magic
+  * @brief  ERASE：先擦元数据使旧 APP 失效，再擦 APP 区
+  *         顺序保证：擦到一半掉电时 Bootloader 不会跳进残缺镜像
+  * @retval 1=成功，0=失败
+  */
+static int BlEraseImage(uint32_t total_len)
+{
+    if (!IMAGE_LEN_OK(total_len)) return 0;
+    if (BlFlashClearMeta() != 0) return 0;
+    return BlFlashEraseRange(APP_START, total_len) == 0;
+}
+
+/**
+  * @brief  FINISH：对 Flash 中已写入的镜像重算 CRC32，通过则写元数据（含 magic）
   * @retval 1=通过，0=失败
   */
 static int BlFinishImage(uint32_t total_len, uint32_t crc_expect)
 {
+    if (!IMAGE_LEN_OK(total_len)) return 0;
     uint32_t crc_calc = BlCrc32((const uint8_t *)APP_START, total_len);
     if (crc_calc != crc_expect) return 0;
-    BlFlashWriteMagic();
-    return 1;
+    return BlFlashWriteMeta(total_len, crc_calc) == 0;
 }
 
 /**
@@ -95,14 +111,15 @@ void BlDispatchFrame(const uint8_t *hdr, uint16_t plen)
     switch (hdr[0])
     {
     case CMD_ERASE:  /* DATA = 镜像总长度(4B LE)，按长度擦对应 sector */
-        ok = (BlFlashEraseRange(APP_START, LE32(&hdr[7])) == 0);
+        ok = (plen >= 4U) && BlEraseImage(LE32(&hdr[7]));
         break;
-    case CMD_WRITE:  /* ADDR = 目标地址，DATA = 分块(<=256B) */
-        ok = (addr >= APP_START && addr + plen <= APP_START + APP_LEN_MAX)
+    case CMD_WRITE:  /* ADDR = 目标地址（4 字节对齐），DATA = 分块(<=256B) */
+        ok = (plen > 0U) && ((addr & 0x3U) == 0U)
+             && (addr >= APP_START && addr + plen <= APP_START + APP_LEN_MAX)
              && (BlFlashWriteRange(addr, &hdr[7], plen) == 0);
         break;
     case CMD_FINISH: /* DATA = 镜像总长度(4B LE) + CRC32(4B LE) */
-        ok = BlFinishImage(LE32(&hdr[7]), LE32(&hdr[11]));
+        ok = (plen >= 8U) && BlFinishImage(LE32(&hdr[7]), LE32(&hdr[11]));
         break;
     case CMD_REBOOT:
         NVIC_SystemReset();

@@ -25,10 +25,16 @@ void CanStart(void);
 void CanSendHeartbeat(uint32_t seq);
 
 /**
-  * @brief  发送应用层命令帧（0=Node1 请求上报，1=Node2 设置速度）
-  * @param  node: 目标节点号（0/1）
+  * @brief  发送 0x101：请求 Node1 上报温度
   * @retval 无
   */
-void CanSendCommand(uint8_t node);
+void CanSendReportReq(void);
+
+/**
+  * @brief  发送 0x201：设置 Node2 目标速度
+  * @param  speed: 目标速度（0~1000）
+  * @retval 无
+  */
+void CanSendSpeed(uint16_t speed);
 
 #endif /* APP_CAN_H */
