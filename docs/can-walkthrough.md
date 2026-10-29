@@ -152,7 +152,7 @@ if (frame.id == CAN_CMD_ID && frame.data[0] == 0x01U)  /* 收到"请求上报" *
     CanSendSensorData(g_temp);   /* 立即回一帧 0x102 */
 }
 
-/* Node2：解析目标速度、更新 g_speed 并回 0x202，速度保持 5 秒 */
+/* Node2：解析目标速度、更新 g_speed（当时版本会回 0x202；现已改为 0x202 只报实测 RPM） */
 if (frame.id == CAN_CMD_ID && frame.data[0] == 0x01U)
 {
     g_speed = (uint16_t)(frame.data[1] | ((uint16_t)frame.data[2] << 8));

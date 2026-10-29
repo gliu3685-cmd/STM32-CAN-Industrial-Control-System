@@ -1,5 +1,7 @@
 # Day28 - PID 闭环调试与三节点联调
 
+> **更正（2026，PR #1）**：本文是当时的学习记录，命令帧逻辑后来有改动：主控不再固定交替发送 500/1000，0x201 速度由 ControlTask 按温度决策（≤60℃ 额定 500，60~80℃ 线性降速，≥80℃ 或 Node1 离线停机），由 MotorTask 下发；`CanSendCommand()` 拆为 `CanSendReportReq()`/`CanSendSpeed()`；Node2 收到 0x201 后不再用 0x202 回传设定值，0x202 只表示实测 RPM。以当前代码和 [can-protocol.md](can-protocol.md) 为准。
+
 ## 1. 今日目标（Objectives）
 
 本日完成第四阶段收官，重点掌握：

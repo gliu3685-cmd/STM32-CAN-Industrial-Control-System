@@ -1,5 +1,7 @@
 # Day24 - CAN 命令驱动电机与真实编码器上报（代码就绪）
 
+> **更正（2026，PR #1）**：本文是当时的学习记录，命令帧逻辑后来有改动：主控不再固定交替发送 500/1000，0x201 速度由 ControlTask 按温度决策（≤60℃ 额定 500，60~80℃ 线性降速，≥80℃ 或 Node1 离线停机），由 MotorTask 下发；`CanSendCommand()` 拆为 `CanSendReportReq()`/`CanSendSpeed()`；Node2 收到 0x201 后不再用 0x202 回传设定值，0x202 只表示实测 RPM。以当前代码和 [can-protocol.md](can-protocol.md) 为准。
+
 ## 1. 今日目标（Objectives）
 
 本日打通"主控指令 → 电机实际动作 → 编码器真实反馈"闭环的代码部分：

@@ -125,13 +125,14 @@
 
 ### Q2：Flash 怎么分区？
 
-* Bootloader 区（0x08000000 起，本项目 64KB）+ APP 区（0x08010000 起，960KB）
+* Bootloader 代码区（0x08000000 起，Sector 0-2，48KB）+ 元数据区（0x0800C000，Sector 3，16KB）+ APP 区（0x08010000 起，960KB）
 * 从扇区边界对齐，独立擦写
 
 ### Q3：跳转 APP 的步骤？
 
-* 关中断 → 读 APP 向量表初始 MSP → `__set_MSP` → 函数指针跳 APP 的 Reset_Handler
-* 跳前校验：初始 MSP 在 RAM 范围 + magic 标志（+0x100 处 0xA5A5A5A5）
+* 反初始化外设/时钟 → 关中断 → 停 SysTick、清 NVIC → 设 VTOR → 读 APP 向量表初始 MSP → `__set_MSP` → 函数指针跳 APP 的 Reset_Handler
+* 跳前校验：元数据区 magic（0x0800C000 处 0xA5A5A5A5）+ 初始 MSP 在 RAM 范围 + 复位向量在 APP 区
+* APP 侧：设 VTOR 后 `__enable_irq()`
 
 ### Q4：为什么 APP 要设 VTOR？
 
@@ -144,7 +145,8 @@
 
 ### Q6：升级中断电会不会变砖？
 
-* 先擦后写，中断后 APP 区不完整；因 magic 未写，下次启动报 NO APP，可重新升级恢复
+* ERASE 先擦元数据再擦 APP，中断后 APP 区不完整；因 magic 已擦且未重写，下次启动报 NO APP，可重新升级恢复
+* FINISH 写元数据时 magic 最后写，写到一半掉电也不会误判有效
 
 ---
 
