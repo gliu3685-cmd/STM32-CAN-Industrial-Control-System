@@ -1,5 +1,7 @@
 # Day21 - 请求/应答命令帧与压力测试（Phase 3 收官）
 
+> **更正（2026，PR #1）**：本文是当时的学习记录，命令帧逻辑后来有改动：主控不再固定交替发送 500/1000，0x201 速度由 ControlTask 按温度决策（≤60℃ 额定 500，60~80℃ 线性降速，≥80℃ 或 Node1 离线停机），由 MotorTask 下发；`CanSendCommand()` 拆为 `CanSendReportReq()`/`CanSendSpeed()`；Node2 收到 0x201 后不再用 0x202 回传设定值，0x202 只表示实测 RPM。以当前代码和 [can-protocol.md](can-protocol.md) 为准。
+
 ## 1. 今日目标（Objectives）
 
 本日完成第三阶段 CAN 通信系统的收官实验，重点掌握：

@@ -1,5 +1,7 @@
 # Day34 - CRC32 完整性校验（损坏固件拒绝升级）
 
+> **更正（2026，PR #1）**：本文是当时的学习记录，Bootloader 实现后来有改动：① Flash 写入由 64 位双字改为 32 位字（F407 双字编程需 VPP 8~9V）；② 有效标志 magic 不再放 `APP_START+0x100`（该处是 FSMC 中断向量），改放 Sector 3 元数据区 `0x0800C000`（magic + 长度 + CRC），Bootloader 代码区相应缩为 48KB（Sector 0-2）；③ 跳转前增加反初始化外设、停 SysTick、清 NVIC、设 VTOR，APP 设 VTOR 后 `__enable_irq()`。以 `firmware/bootloader` 当前代码和 [code-walkthrough-full.md](code-walkthrough-full.md) 为准。
+
 ## 1. 今日目标（Objectives）
 
 本日给升级流程加"最后一道闸"，重点掌握：

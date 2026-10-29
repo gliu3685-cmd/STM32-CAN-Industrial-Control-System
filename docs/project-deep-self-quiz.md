@@ -312,7 +312,8 @@
 - 答：**最小单位是一个扇区**，不能按字节、也不能小于一个扇区擦。**单次扇区擦除最多 128KB**（大扇区），最小 16KB；整片全擦也就 1MB。擦写寿命典型约 1 万次。
 
 **Q6：写的最小单位？**
-- 答：F4 内部 Flash 按 **64 位双字**（doubleword）编程（HAL 用 `FLASH_TYPEPROGRAM_DOUBLEWORD`）。你 `BlFlashWriteRange` 就是把字节攒成 64 位再写、尾块补 0xFF。
+- 答：F407 的编程宽度由供电电压决定：VDD 2.7~3.6V 时最大 **32 位字**（`FLASH_TYPEPROGRAM_WORD`，对应 `VOLTAGE_RANGE_3`）；**64 位双字**只有 VPP 引脚外加 8~9V 才能用。本板 3.3V 供电，`BlFlashWriteRange` 把字节攒成 32 位再写、尾块补 0xFF，地址须 4 字节对齐。
+- 追问：早期版本用了双字编程，不符合参考手册对 3.3V 供电的要求，写入不可靠；擦除用的 `VOLTAGE_RANGE_3` 也对应 32 位，两者对不上。
 
 **Q7：为什么分区要按扇区边界对齐？**
 - 答：因为擦除只能整扇区擦。分区边界若落在扇区中间，擦 A 区会**误擦 B 区**。所以 Bootloader 占整扇区，APP 从扇区边界开始。
@@ -320,16 +321,19 @@
 ### B. 项目必答
 
 **Q8：你的 Flash 怎么分区的？**
-- 答：**Bootloader = Sector 0–3 = 64KB**，起始 `0x08000000`；**APP = Sector 4–11 = 960KB**，起始 `0x08010000`（正好是 Sector 4 起始，扇区对齐）。
+- 答：**Bootloader 代码 = Sector 0–2 = 48KB**，起始 `0x08000000`（实际约 11KB）；**元数据 = Sector 3 = 16KB**，起始 `0x0800C000`，存 magic + 镜像长度 + CRC32；**APP = Sector 4–11 = 960KB**，起始 `0x08010000`（正好是 Sector 4 起始，扇区对齐）。
+- 追问：元数据为什么单独占一个扇区？因为它要能**独立擦写**：升级开始先擦它让旧 APP 失效，又不能和 APP 镜像共用扇区。
 
 **Q9：怎么从 Bootloader 跳到 APP？**
-- 答：① 关中断；② 读 APP 首地址的初始 **MSP** 并 `__set_MSP()`；③ 取 `APP_START+4` 的 **Reset_Handler** 地址，用**函数指针**调用跳转（永不返回）。
+- 答：① 反初始化 Bootloader 用过的外设和时钟（`HAL_UART_DeInit`、`HAL_RCC_DeInit`、`HAL_DeInit`）；② 关中断、**停 SysTick**、清 NVIC 所有使能位和挂起位；③ 设 `SCB->VTOR = APP_START`；④ 读 APP 首地址的初始 **MSP** 并 `__set_MSP()`；⑤ 取 `APP_START+4` 的 **Reset_Handler** 地址，用**函数指针**调用跳转（永不返回）。
+- 追问：只关中断不清理会怎样？SysTick 和外设中断的挂起位会被带进 APP；APP 一开中断就进到未初始化的处理函数。反过来，APP 若一直不开中断，`HAL_Delay` 会卡死，所以 APP `main` 开头设 VTOR 后要 `__enable_irq()`。
 
 **Q10：为什么 APP 要设置 VTOR？**
 - 答：APP 的向量表搬到了 `0x08010000`，若不设 `SCB->VTOR`，中断仍按 `0x08000000` 查表，会跳到错误地址导致 HardFault。
 
 **Q11：怎么判断 APP 有效？magic 放在哪？**
-- 答：判断两件事：APP 首字的**栈指针在 SRAM 范围**内，且 `APP_START + 0x100` 处的 **magic = 0xA5A5A5A5**。升级完成且校验通过才写 magic；不通过就不写，下次启动报 `NO APP`，**不会跑损坏固件**。
+- 答：判断三件事：Sector 3 元数据区（`0x0800C000`）的 **magic = 0xA5A5A5A5**；APP 首字的**栈指针在 SRAM 范围**内；复位向量落在 APP 区。升级完成且全镜像 CRC 通过才写元数据；不通过就不写，下次启动报 `NO APP`，**不会跑损坏固件**。
+- 追问：为什么不放在 `APP_START + 0x100`？F407 向量表长 0x188 字节，+0x100 是 FSMC 中断向量，那个字已经随镜像写入了数据，Flash 只能 1→0，再写 magic 得不到 0xA5A5A5A5。
 
 **Q12：升级协议的帧格式和命令？**
 - 答：帧 = `A5 5A | CMD(1B) | ADDR(4B 小端) | LEN(2B 小端) | DATA(≤256B) | CRC32(4B 小端，仅 DATA)`。
@@ -343,7 +347,7 @@
 - 两端一致靠**同一算法**：固件用逐位反射实现，上位机用 Python `zlib.crc32`，并用标准向量 `crc32("123456789")==0xCBF43926` 验证一致。
 
 **Q15：升级中途断电会不会变砖？**
-- 答：**不会**。先擦后写，断电会让 APP 区不完整；但因为 **magic 未写**，Bootloader 判定 APP 无效 → 报 `NO APP`，可**重新升级恢复**。
+- 答：**不会**。ERASE 时**先擦元数据**再擦 APP 区，所以从擦除开始旧 APP 就已失效；断电会让 APP 区不完整，但 magic 不在，Bootloader 判定 APP 无效 → 报 `NO APP`，可**重新升级恢复**。FINISH 写元数据时 magic **最后写**，写长度/CRC 时掉电也不会误判有效。
 
 **Q16：上位机（Python）整个流程？**
 - 答：等 `BOOT` 横幅 → 发 `u` 进升级模式 → **ERASE**（带镜像总长）→ 按 **256 字节分包 WRITE**（地址递增）→ **FINISH**（总长 + 全图 CRC32）→ **REBOOT**。用 `pyserial`，每帧等 ACK、超时重传。
@@ -369,7 +373,7 @@
 | PID | 增量式，Kp=5/Ki=1/Kd=0，积分分离阈值 30，20ms，限幅 [0,800] |
 | 编码器 | TIM3 4 倍频，PPR=1079，EMA 平滑 |
 | Flash | 扇区 16/64/128KB；擦除最小单位=扇区，最大 128KB |
-| Bootloader | 64KB@0x08000000；APP 960KB@0x08010000；magic 0xA5A5A5A5@+0x100 |
+| Bootloader | 48KB@0x08000000（Sector 0-2）；元数据 Sector 3@0x0800C000（magic 0xA5A5A5A5+长度+CRC）；APP 960KB@0x08010000 |
 | 升级协议 | A5 5A\|CMD\|ADDR\|LEN\|DATA\|CRC32；ERASE/WRITE/FINISH/REBOOT；ACK 0x06/NACK 0x15 |
 | CRC32 | IEEE 802.3，0xEDB88320，校验向量 0xCBF43926 |
 

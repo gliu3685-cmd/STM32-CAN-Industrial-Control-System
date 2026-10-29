@@ -30,7 +30,7 @@ FreeRTOS Task Layer（任务调度、队列、信号量、互斥量）
 | 任务 | 职责 |
 |---|---|
 | CanRxTask | 从 xCanRxQueue 收帧，按 ID 分发/更新节点状态表 |
-| CanTxTask | 周期发心跳 0x100、命令 0x101/0x201（500/1000 交替，约 10s 一轮） |
+| CanTxTask | 1s 发心跳 0x100；每 10s 发 0x101 请求上报（0x201 速度指令由 MotorTask 按 ControlTask 决策下发） |
 | ControlTask | 温度越限检测 + 速度指令计算（输出到 xMotorQueue） |
 | FaultMonitorTask | 心跳超时离线检测、告警与恢复 |
 | DebugTask | 串口状态输出（加 uartMutex） |

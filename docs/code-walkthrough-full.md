@@ -112,10 +112,10 @@ typedef struct {
 | 任务 | 优先级 | 职责 |
 |---|---|---|
 | CanRxTask | 4 | 收帧、更新状态表（`last_rx_tick`、`node_online`、温度/速度） |
-| ControlTask | 5 | 等新帧/心跳 → 温度越限告警 → 算目标速度 → 发 `xMotorQueue` |
-| MotorTask | 3 | 收目标速度并打印（Day15 起转发给电机节点） |
+| ControlTask | 5 | 等新帧/心跳 → 按温度算目标速度（≤60℃ 额定 500，60~80℃ 线性降速，≥80℃ 或 Node1 离线停机）→ 发 `xMotorQueue` |
+| MotorTask | 3 | 收目标速度 → `CanSendSpeed()` 发 0x201；变化立即发，不变时每 1s 重发 |
 | FaultMonitorTask | 4 | 每心跳检查 `now-last_rx_tick > 5000ms` → 判离线 |
-| CanTxTask | 2 | 1s 发心跳 0x100；每 5s 交替发 0x101/0x201 |
+| CanTxTask | 2 | 1s 发心跳 0x100；每 10s 发 0x101 请求上报 |
 | DebugTask | 1 | 2s 打印状态与堆水位 |
 
 **`ArchDemoTask`**：创建所有对象 → 创建任务 → `CanStart()` → 自删。这是“主控启动”的真正入口。
@@ -135,9 +135,9 @@ typedef struct {
 
 **`CanSendHeartbeat(seq)`**：发 0x100，DLC=8，负载 = `seq` 小端 + `0x55AA`；发完**直接读 ESR** 打印 `LEC/TEC/REC`（诊断不依赖中断）。
 
-**`CanSendCommand(node)`**：
-- `node=0` → 0x101，DLC=1，`data[0]=0x01`（请求 Node1 上报温度）
-- `node=1` → 0x201，DLC=3，`data[0]=0x01` + 目标速度 500/1000 **小端**
+**`CanSendReportReq()`**：0x101，DLC=1，`data[0]=0x01`（请求 Node1 上报温度）。
+
+**`CanSendSpeed(speed)`**：0x201，DLC=3，`data[0]=0x01` + 目标速度 **小端**；速度值来自 ControlTask 的控制决策。
 
 **`HAL_CAN_RxFifo0MsgPendingCallback()`**：取帧 → 记 tick → **ID 映射节点号**（`0x202→1`，否则 `0`）→ `ArchPostCanFrame()`。
 
@@ -257,15 +257,15 @@ if (pid_out < 0)   pid_out = 0;
 
 - `CanStart()`：同 F103 修复（PA11 输入 + 清 DBF），过滤器只收 `0x201`。
 - `CanSendMotorData(speed)`：0x202，DLC=2，小端。
-- `CanRxTask`：收 0x201 且 `data[0]==0x01` → 解析目标速度 → `MotorSetDir(1)` → 回 0x202。
+- `CanRxTask`：收 0x201 且 `data[0]==0x01` → 解析目标速度 → `MotorSetDir(1)`。不回传设定值，0x202 只表示实测 RPM。
 - `CanTxTask`（20ms 周期，闭环主体）：
   ```c
   enc = MotorGetCount(); delta = enc - last_enc;  /* 取绝对值防回绕 */
   rpm = delta*60000/(dt*ENC_COUNTS_PER_REV);       /* 实际 dt 换算 */
   rpm_sm = (rpm_sm*3 + rpm)/4;                     /* EMA 平滑 */
   target_rpm = g_speed/2;
-  duty = MotorPidCompute(target_rpm, rpm_sm);
-  if (g_speed==0) duty = 0;
+  if (g_speed==0) { MotorPidReset(); duty = 0; }   /* 停机清 PID 状态 */
+  else            duty = MotorPidCompute(target_rpm, rpm_sm);
   MotorSetDuty(duty);
   /* 每 1s 累加差值算 RPM 发 0x202 */
   vTaskDelay(pdMS_TO_TICKS(20));
@@ -296,12 +296,15 @@ else {
 
 - **`AddrToSector()`**：地址→扇区号（Sector 0-3 是 16KB，Sector 4 是 64KB，Sector 5-11 是 128KB）。
 - **`BlFlashEraseRange()`**：按扇区擦除 `[addr, addr+len)` 覆盖的范围（**擦除只能整扇区**）。
-- **`BlFlashWriteRange()`**：攒成 **64 位双字**再 `HAL_FLASH_Program`，尾块补 `0xFF`。
-- **`BlFlashWriteMagic()`**：在 `APP_START+0x100` 写 `0xA5A5A5A5`。
-- **`BlAppValid()`**：栈指针在 `0x20000000~0x20020000`（128KB SRAM）**且** magic 正确。
-- **`BlJumpToApp()`**：关中断 → 读 APP 首字设为 MSP → 取 `APP_START+4` 的 Reset_Handler 用**函数指针**跳转。
+- **`BlFlashWriteRange()`**：攒成 **32 位字**再 `HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD)`，尾块补 `0xFF`；地址须 4 字节对齐。F407 在 3.3V 下只能字编程，双字编程要求 VPP 外加 8~9V。
+- **`BlFlashClearMeta()`**：擦除 Sector 3 元数据区，使旧 APP 失效（ERASE 时先调用）。
+- **`BlFlashWriteMeta(len, crc)`**：在 Sector 3 写长度、CRC32，**最后**写 magic `0xA5A5A5A5`（写到一半掉电 magic 仍为 0xFF）。
+- **`BlAppValid()`**：magic 正确 **且** 栈指针在 `0x20000000~0x20020000`（128KB SRAM）**且** 复位向量落在 APP 区。
+- **`BlJumpToApp()`**：反初始化 UART/RCC/HAL → 关中断 → 停 SysTick → 清 NVIC 使能与挂起位 → 设 `SCB->VTOR` → `__set_MSP` → 函数指针跳 Reset_Handler。APP `main` 开头设 VTOR 后 `__enable_irq()`。
 
-**关键常量**：`APP_START=0x08010000`、`APP_LEN_MAX=0xF0000`(960KB)、`APP_MAGIC=0xA5A5A5A5`。
+**关键常量**：`APP_START=0x08010000`、`APP_LEN_MAX=0xF0000`(960KB)、`META_ADDR=0x0800C000`(Sector 3)、`APP_MAGIC=0xA5A5A5A5`。
+
+> 为什么不把 magic 放在 `APP_START+0x100`：F407 向量表长 0x188 字节，+0x100 是 FSMC 中断向量，已被镜像内容占用，再写 magic 得不到正确值。
 
 ### 4.3 `bl_protocol.c` — 升级协议状态机
 
@@ -313,9 +316,9 @@ else {
    - 相符 → `BlDispatchFrame()`。
 
 **命令分发** `BlDispatchFrame()`（`hdr[0]=CMD, hdr[1..4]=ADDR, hdr[5..6]=LEN, hdr[7..]=DATA`）：
-- `ERASE`：`BlFlashEraseRange(APP_START, LE32(&hdr[7]))`（DATA 是 4 字节镜像总长）
-- `WRITE`：先校验 `addr` 落在 APP 区，再 `BlFlashWriteRange`（**防越界覆盖 Bootloader**）
-- `FINISH`：`BlFinishImage(总长, CRC)` → 对 Flash 重算 CRC，比对通过才写 magic
+- `ERASE`：`BlEraseImage(总长)` → 校验长度 → 先擦元数据，再擦 APP 区（DATA 是 4 字节镜像总长）
+- `WRITE`：先校验 `addr` 4 字节对齐且落在 APP 区，再 `BlFlashWriteRange`（**防越界覆盖 Bootloader**）
+- `FINISH`：`BlFinishImage(总长, CRC)` → 校验长度 → 对 Flash 重算 CRC，比对通过才写元数据（含 magic）
 - `REBOOT`：`NVIC_SystemReset()`
 - 非 REBOOT 都回 `ACK(0x06)`/`NACK`
 
@@ -353,12 +356,12 @@ else {
 | 传感器过滤器 | 0x101 |
 | 电机过滤器 | 0x201 |
 | 主控任务 | CanRx(4)/Ctrl(5)/Motor(3)/Fault(4)/CanTx(2)/Debug(1) |
-| 主控周期 | 心跳 1s；命令每 5s 交替；离线超时 5s |
+| 主控周期 | 心跳 1s；0x101 每 10s；0x201 按决策下发、不变时 1s 重发；离线超时 5s |
 | 传感器周期 | 0x102 每 1s；0x103 每 1s |
 | 电机周期 | PID 20ms；0x202 每 1s |
 | 关键参数 | PPR=1079；PID Kp=5/Ki=1/Kd=0，分离阈值 30，限幅 [0,800] |
 | PWM | TIM2，2kHz，ARR=999 |
-| Bootloader | APP=0x08010000，960KB；magic=0xA5A5A5A5@+0x100 |
+| Bootloader | 代码 Sector 0-2（48KB）；元数据 Sector 3（0x0800C000，magic+len+CRC）；APP=0x08010000，960KB |
 | 升级帧 | A5 5A + CMD + ADDR(4LE) + LEN(2LE) + DATA + CRC32(4LE) |
 
 ---
@@ -374,4 +377,4 @@ else {
 7. **端序**：CAN 协议小端 vs MPU6050 寄存器大端。
 8. **增量式 PID + 积分分离 + 限幅**：为什么、参数怎么来。
 9. **Flash 扇区擦除**：只能整扇区、最大 128KB、先擦后写。
-10. **IAP**：VTOR、MSP 设置、函数指针跳转、magic 有效性、CRC 全镜像校验。
+10. **IAP**：VTOR、跳转前清理现场（SysTick/NVIC/外设）、MSP 设置、函数指针跳转、独立元数据扇区、CRC 全镜像校验。
